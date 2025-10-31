@@ -1,17 +1,37 @@
 import yfinance as yf
 import pandas as pd
 from datetime import datetime, timedelta
+from fredapi import Fred
+from dotenv import load_dotenv
+import os
 
 
 def get_market_data():
     tickers = {
-        "SP500": "^GSPC",
-        "NASDAQ": "^IXIC",
-        "Gold": "GC=F",
-        "Oil": "CL=F",
-        "USD_Index": "DX-Y.NYB",
-        "10Y_Yield": "^TNX"
-    }
+    # Equities
+    "SP500": "^GSPC",
+    "NASDAQ": "^IXIC",
+
+    # Commodities
+    "Gold": "GC=F",
+    "Oil": "CL=F",
+    "Copper": "HG=F",
+
+    # Forex (FX)
+    "USD_Index": "DX-Y.NYB",     
+    "EURUSD": "EURUSD=X",
+    "USDJPY": "USDJPY=X",
+
+    # Fixed Income / Bonds
+    "10Y_Yield": "^TNX",        
+    "2Y_Yield": "^FVX",         
+    "3M_Yield": "^IRX",          
+
+    # Crypto
+    "Bitcoin": "BTC-USD",
+    "Ethereum": "ETH-USD",
+}
+
 
     end = datetime.now()
     start = end - timedelta(days=365)
@@ -61,12 +81,19 @@ def save_to_db(df):
     for date, row in df.iterrows():
         entry = MarketData(
             date=date.date(),
-            sp500=row["SP500"],
-            nasdaq=row["NASDAQ"],
-            gold=row["Gold"],
-            oil=row["Oil"],
-            usd_index=row["USD_Index"],
-            yield_10y=row["10Y_Yield"],
+            sp500=row.get("SP500"),
+            nasdaq=row.get("NASDAQ"),
+            gold=row.get("Gold"),
+            oil=row.get("Oil"),
+            copper=row.get("Copper"),
+            usd_index=row.get("USD_Index"),
+            eurusd=row.get("EURUSD"),
+            usdjpy=row.get("USDJPY"),
+            yield_10y=row.get("10Y_Yield"),
+            yield_2y=row.get("2Y_Yield"),
+            yield_3m=row.get("3M_Yield"),
+            bitcoin=row.get("Bitcoin"),
+            ethereum=row.get("Ethereum"),
         )
         session.add(entry)
 
@@ -74,6 +101,64 @@ def save_to_db(df):
     session.close()
     print(f"Saved {len(df)} rows to the database.")
 
+
+from db import SessionLocal
+from models import MacroData
+
+def get_macro_data():
+    """
+    Fetch key macroeconomic indicators from the Federal Reserve (FRED).
+    Returns a pandas DataFrame with monthly/quarterly data and saves to DB.
+    """
+    load_dotenv()  # ✅ loads .env variables
+    FRED_API_KEY = os.getenv("FRED_API_KEY")
+
+    if not FRED_API_KEY:
+        raise RuntimeError("FRED_API_KEY not found. Set it in your .env file.")
+
+    fred = Fred(api_key=FRED_API_KEY)
+
+    series = {
+        "CPI": "CPIAUCSL",           # Inflation
+        "Unemployment": "UNRATE",    # %
+        "Fed_Funds_Rate": "FEDFUNDS",
+        "GDP": "GDPC1"               # Real GDP
+    }
+
+    data = {}
+    for name, code in series.items():
+        try:
+            df = fred.get_series(code)
+            data[name] = df
+            print(f"Loaded macro: {name}")
+        except Exception as e:
+            print(f"Error loading {name}: {e}")
+
+    macro_df = pd.DataFrame(data)
+    macro_df.index = pd.to_datetime(macro_df.index)
+    macro_df = macro_df.dropna()
+
+    # Save to DB
+    session = SessionLocal()
+    session.query(MacroData).delete()  # clear old
+    for date, row in macro_df.iterrows():
+        entry = MacroData(
+            date=date.date(),
+            cpi=row["CPI"],
+            unemployment=row["Unemployment"],
+            fed_funds_rate=row["Fed_Funds_Rate"],
+            gdp=row["GDP"],
+        )
+        session.add(entry)
+    session.commit()
+    session.close()
+
+    print(f"Saved {len(macro_df)} macro rows to database.")
+    return macro_df
+
+
+
 if __name__ == "__main__":
     get_market_data()
+    get_macro_data()
 

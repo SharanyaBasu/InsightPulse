@@ -4,7 +4,7 @@ import pandas as pd
 
 from sqlalchemy.orm import Session
 from db import SessionLocal
-from models import MarketData
+from models import MarketData, MacroData
 
 app = FastAPI() 
 
@@ -44,8 +44,35 @@ def get_history():
             "nasdaq": row.nasdaq,
             "gold": row.gold,
             "oil": row.oil,
+            "copper": row.copper,
             "usd_index": row.usd_index,
-            "10yr_yield": row.yield_10y
+            "eurusd": row.eurusd,
+            "usdjpy": row.usdjpy,
+            "yield_10y": row.yield_10y,
+            "yield_2y": row.yield_2y,
+            "yield_3m": row.yield_3m,
+            "bitcoin": row.bitcoin,
+            "ethereum": row.ethereum,
         }
         for row in data
+    ]
+
+@app.get("/api/macro")
+def get_macro():
+    """
+    Returns stored macroeconomic indicators from DB.
+    """
+    db: Session = SessionLocal()
+    data = db.query(MacroData).order_by(MacroData.date).all()
+    db.close()
+
+    return [
+        {
+            "date": str(r.date),
+            "cpi": r.cpi,
+            "unemployment": r.unemployment,
+            "fed_funds_rate": r.fed_funds_rate,
+            "gdp": r.gdp,
+        }
+        for r in data
     ]
