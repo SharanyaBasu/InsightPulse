@@ -46,4 +46,34 @@ def get_market_data():
     print(f"\nFinal dataframe shape: {df.shape}")
     print(df.tail())
 
+    save_to_db(df)
+
     return df
+
+
+from db import SessionLocal
+from models import MarketData
+
+def save_to_db(df):
+    session = SessionLocal()
+    session.query(MarketData).delete()  # optional: clears old data
+
+    for date, row in df.iterrows():
+        entry = MarketData(
+            date=date.date(),
+            sp500=row["SP500"],
+            nasdaq=row["NASDAQ"],
+            gold=row["Gold"],
+            oil=row["Oil"],
+            usd_index=row["USD_Index"],
+            yield_10y=row["10Y_Yield"],
+        )
+        session.add(entry)
+
+    session.commit()
+    session.close()
+    print(f"Saved {len(df)} rows to the database.")
+
+if __name__ == "__main__":
+    get_market_data()
+
