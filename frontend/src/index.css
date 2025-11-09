@@ -1,37 +1,33 @@
-body {
-  background-color: #0d1117;
-  color: #e6edf3;
+:root {
+  --bg: #0b0e11;
+  --panel: rgba(22, 27, 34, 0.82);
+  --panel-border: rgba(255, 255, 255, 0.05);
+  --panel-glow: rgba(80, 140, 255, 0.06);
+
+  --text: #e6e6e6;
+  --text-soft: #9ca3af;
+  --text-mute: #6b7280;
+
+  --green: #1dd75f;
+  --red: #ff4e4e;
+  --blue: #4aa8ff;
+
+  --radius: 12px;
+
   font-family: "Inter", sans-serif;
+  background: var(--bg);
+  color: var(--text);
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
   margin: 0;
-  padding: 0;
 }
 
-h1, h2, h3 {
-  color: #58a6ff;
+.market-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.45);
 }
 
-.container {
-  max-width: 900px;
-  margin: 0 auto;
-  padding: 40px 20px;
-}
-
-.card {
-  background-color: #161b22;
-  border-radius: 10px;
-  padding: 20px;
-  margin-bottom: 20px;
-  box-shadow: 0 0 10px rgba(0,0,0,0.4);
-}
-
-.grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: 15px;
-  margin-top: 15px;
-}
-
-.value {
-  font-size: 1.1rem;
-  color: #c9d1d9;
-}
