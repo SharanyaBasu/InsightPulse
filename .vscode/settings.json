@@ -1,0 +1,11 @@
+{
+  "sqltools.connections": [
+    {
+      "previewLimit": 500,
+      "driver": "SQLite",
+      "name": "InsightPulse",
+      "database": "backend/insightpulse.db"
+    }
+  ],
+  "sqltools.useNodeRuntime": true
+}
