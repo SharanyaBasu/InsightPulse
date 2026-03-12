@@ -8,6 +8,8 @@ import SectorTile from "../components/Overview/SectorTile";
 import RegionTile from "../components/Overview/RegionTile";
 import MacroChips from "../components/Overview/MacroChips";
 import YieldPanel from "../components/Overview/YieldPanel";
+import CrossAssetPanel from "../components/Overview/CrossAssetPanel";
+import CorrelationMonitor from "../components/Overview/CorrelationMonitor";
 
 export default function OverviewPage() {
   const { data, loading } = useOverview();
@@ -121,6 +123,28 @@ export default function OverviewPage() {
           <MacroChips macro={data.macro} />
         </div>
       </div>
+
+      {/* CROSS-ASSET SNAPSHOT */}
+      {data.cross_asset && (
+        <>
+          <h2 style={{ color: "var(--blue)", marginBottom: "1rem" }}>Cross-Asset Snapshot</h2>
+          <div style={{ marginBottom: "3rem" }}>
+            <CrossAssetPanel assets={data.cross_asset} />
+          </div>
+        </>
+      )}
+
+      {/* CORRELATION MONITOR */}
+      {data.correlations && (
+        <>
+          <h2 style={{ color: "var(--blue)", marginBottom: "1rem" }}>Regime & Correlation Monitor</h2>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: "1.4rem", marginBottom: "3rem" }}>
+            {data.correlations.map(pair => (
+              <CorrelationMonitor key={pair.key} pairs={[pair]} />
+            ))}
+          </div>
+        </>
+      )}
 
       {/* REGIONS */}
       <h2 style={{ color: "var(--blue)", marginBottom: "1rem" }}>Regions</h2>

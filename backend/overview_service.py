@@ -4,6 +4,7 @@ from typing import Dict, List, Any
 
 import numpy as np
 import pandas as pd
+import yfinance as yf
 
 from db import SessionLocal
 from signals_engine import generate_sentiment_series, load_market_data
@@ -137,6 +138,131 @@ def _classify_equity_trend(spx: pd.Series):
     return "Neutral"
 
 
+def _fetch_live_ticker(ticker: str, name: str, group: str):
+    """Fetch a single ticker from yfinance and return a cross-asset row dict."""
+    try:
+        raw = yf.download(ticker, period="3mo", interval="1d", auto_adjust=True, progress=False)
+        if raw.empty:
+            return None
+        close = raw["Close"].dropna()
+        if len(close) < 5:
+            return None
+        price = float(close.iloc[-1])
+        change_1d = _pct_change(close, 1)
+        sparkline = _sparkline(close, 30)
+        return {
+            "group": group,
+            "name": name,
+            "symbol": ticker,
+            "price": price,
+            "change_1d": change_1d,
+            "sparkline": sparkline,
+        }
+    except Exception:
+        return None
+
+
+def _build_cross_asset(market_df: pd.DataFrame, macro_daily: pd.DataFrame) -> list:
+    rows = []
+
+    def _row(group, name, symbol, series):
+        s = series.dropna()
+        if s.empty:
+            return None
+        return {
+            "group": group,
+            "name": name,
+            "symbol": symbol,
+            "price": float(s.iloc[-1]),
+            "change_1d": _pct_change(s, 1),
+            "sparkline": _sparkline(s, 30),
+        }
+
+    # Equities
+    if "sp500" in market_df.columns:
+        r = _row("Equities", "S&P 500", "sp500", market_df["sp500"])
+        if r:
+            rows.append(r)
+    if "nasdaq" in market_df.columns:
+        r = _row("Equities", "NASDAQ", "nasdaq", market_df["nasdaq"])
+        if r:
+            rows.append(r)
+    msci = _fetch_live_ticker("URTH", "MSCI World", "Equities")
+    if msci:
+        rows.append(msci)
+
+    # Rates
+    if "two_year_yield" in macro_daily.columns:
+        r = _row("Rates", "US 2Y Yield", "dgs2", macro_daily["two_year_yield"])
+        if r:
+            rows.append(r)
+    if "ten_year_yield" in macro_daily.columns:
+        r = _row("Rates", "US 10Y Yield", "dgs10", macro_daily["ten_year_yield"])
+        if r:
+            rows.append(r)
+
+    # Yield Curve Slope
+    if "two_year_yield" in macro_daily.columns and "ten_year_yield" in macro_daily.columns:
+        ten = macro_daily["ten_year_yield"].dropna()
+        two = macro_daily["two_year_yield"].dropna()
+        slope = (ten - two) * 100
+        slope = slope.dropna()
+        if not slope.empty and len(slope) >= 2:
+            price_bps = float(slope.iloc[-1])
+            change_1d_bps = float(slope.iloc[-1] - slope.iloc[-2])
+            # sparkline: normalize by median to avoid zero-crossing bug
+            s30 = slope.tail(30)
+            med = float(s30.median())
+            if abs(med) > 0.1:
+                sparkline = (s30 / med).tolist()
+            else:
+                rng = s30.max() - s30.min()
+                if rng > 0:
+                    sparkline = ((s30 - s30.min()) / rng).tolist()
+                else:
+                    sparkline = [float(v) for v in s30.tolist()]
+            rows.append({
+                "group": "Rates",
+                "name": "Yield Curve Slope",
+                "symbol": "slope_2s10s",
+                "price": price_bps,
+                "change_1d": change_1d_bps,
+                "sparkline": [float(v) for v in sparkline],
+            })
+
+    # FX
+    if "usd_index" in market_df.columns:
+        r = _row("FX", "DXY", "usd_index", market_df["usd_index"])
+        if r:
+            rows.append(r)
+    if "eurusd" in market_df.columns:
+        r = _row("FX", "EUR/USD", "eurusd", market_df["eurusd"])
+        if r:
+            rows.append(r)
+
+    # Commodities
+    if "oil" in market_df.columns:
+        r = _row("Commodities", "WTI Oil", "oil", market_df["oil"])
+        if r:
+            rows.append(r)
+    if "gold" in market_df.columns:
+        r = _row("Commodities", "Gold", "gold", market_df["gold"])
+        if r:
+            rows.append(r)
+
+    # Crypto
+    if "bitcoin" in market_df.columns:
+        r = _row("Crypto", "Bitcoin", "bitcoin", market_df["bitcoin"])
+        if r:
+            rows.append(r)
+    if "ethereum" in market_df.columns:
+        r = _row("Crypto", "Ethereum", "ethereum", market_df["ethereum"])
+        if r:
+            rows.append(r)
+
+    return rows
+
+
 def _direction(a, b):
     if pd.isna(a) or pd.isna(b):
         return "flat"
@@ -181,6 +307,13 @@ def build_overview_snapshot(force_refresh=False):
     market_df = load_market_data()
     macro_df = _load_macro_df()
     macro_daily = macro_df.asfreq("B").ffill()
+
+    # ------------------------
+    # Cross-Asset + Correlations
+    # ------------------------
+    cross_asset = _build_cross_asset(market_df, macro_daily)
+    from correlation_service import build_correlations
+    correlations = build_correlations(market_df, macro_daily)
 
     # ------------------------
     # Market Cards
@@ -318,6 +451,8 @@ def build_overview_snapshot(force_refresh=False):
             "slope_label": slope_label,
         },
         "narrative": narrative,
+        "cross_asset": cross_asset,
+        "correlations": correlations,
         "last_updated": pd.Timestamp.utcnow().isoformat(),
     }
 
