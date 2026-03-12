@@ -101,63 +101,78 @@ def get_market_data():
 from db import SessionLocal
 from models import MarketData
 
+# Helper to force numeric values into native Python floats for DB inserts.
+# Why: Postgres/psycopg2 may reject NumPy scalar types that can leak from pandas rows.
+def _to_native_scalar(value):
+    # Convert pandas missing values (NaN/NaT) to None so SQLAlchemy writes SQL NULL.
+    if pd.isna(value):
+        return None
+
+    # Cast every non-missing numeric value to a native Python float.
+    # Why: this guarantees ORM bind params are float/None (not np.float64).
+    return float(value)
+
 def save_to_db(df):
     session = SessionLocal()
     session.query(MarketData).delete()  # optional: clears old data
 
     for date, row in df.iterrows():
+        # Build a plain Python dict of normalized values for this row.
+        # Why: converting to dict prevents pandas from re-coercing values back to NumPy dtypes.
+        normalized = {col: _to_native_scalar(row[col]) for col in df.columns}
+
         entry = MarketData(
             date=date.date(),
             # --- Equities ---
-            sp500=row.get("SP500"),
-            nasdaq=row.get("NASDAQ"),
-            vgk=row.get("VGK"),
-            ewj=row.get("EWJ"),
-            eem=row.get("EEM"),
-            mtum=row.get("MTUM"),
-            vtv=row.get("VTV"),
-            iwf=row.get("IWF"),
+            sp500=normalized.get("SP500"),
+            nasdaq=normalized.get("NASDAQ"),
+            vgk=normalized.get("VGK"),
+            ewj=normalized.get("EWJ"),
+            eem=normalized.get("EEM"),
+            mtum=normalized.get("MTUM"),
+            vtv=normalized.get("VTV"),
+            iwf=normalized.get("IWF"),
 
             # --- Sector ETFs (NEW) ---
-            xly=row.get("XLY"),
-            xlp=row.get("XLP"),
-            xle=row.get("XLE"),
-            xlf=row.get("XLF"),
-            xlv=row.get("XLV"),
-            xlk=row.get("XLK"),
-            xli=row.get("XLI"),
-            xlb=row.get("XLB"),
-            xlre=row.get("XLRE"),
-            xlc=row.get("XLC"),
+            xly=normalized.get("XLY"),
+            xlp=normalized.get("XLP"),
+            xle=normalized.get("XLE"),
+            xlf=normalized.get("XLF"),
+            xlv=normalized.get("XLV"),
+            xlk=normalized.get("XLK"),
+            xli=normalized.get("XLI"),
+            xlb=normalized.get("XLB"),
+            xlre=normalized.get("XLRE"),
+            xlc=normalized.get("XLC"),
 
             # --- Bonds / Credit ---
-            irx=row.get("IRX"),
-            fvx=row.get("FVX"),
-            tnx=row.get("TNX"),
-            hyg=row.get("HYG"),
-            lqd=row.get("LQD"),
-            tlt=row.get("TLT"),
-            vix=row.get("VIX"),
+            irx=normalized.get("IRX"),
+            fvx=normalized.get("FVX"),
+            tnx=normalized.get("TNX"),
+            hyg=normalized.get("HYG"),
+            lqd=normalized.get("LQD"),
+            tlt=normalized.get("TLT"),
+            vix=normalized.get("VIX"),
 
             # --- Commodities ---
-            oil=row.get("Oil"),
-            natgas=row.get("NatGas"),
-            gold=row.get("Gold"),
-            silver=row.get("Silver"),
-            copper=row.get("Copper"),
+            oil=normalized.get("Oil"),
+            natgas=normalized.get("NatGas"),
+            gold=normalized.get("Gold"),
+            silver=normalized.get("Silver"),
+            copper=normalized.get("Copper"),
 
             # --- FX ---
-            usd_index=row.get("USD_Index"),
-            eurusd=row.get("EURUSD"),
-            gbpusd=row.get("GBPUSD"),
-            audusd=row.get("AUDUSD"),
-            usdjpy=row.get("USDJPY"),
-            usdchf=row.get("USDCHF"),
-            cew=row.get("CEW"),
+            usd_index=normalized.get("USD_Index"),
+            eurusd=normalized.get("EURUSD"),
+            gbpusd=normalized.get("GBPUSD"),
+            audusd=normalized.get("AUDUSD"),
+            usdjpy=normalized.get("USDJPY"),
+            usdchf=normalized.get("USDCHF"),
+            cew=normalized.get("CEW"),
 
             # --- Crypto ---
-            bitcoin=row.get("Bitcoin"),
-            ethereum=row.get("Ethereum"),
+            bitcoin=normalized.get("Bitcoin"),
+            ethereum=normalized.get("Ethereum"),
         )
         session.add(entry)
 
@@ -215,14 +230,17 @@ def get_macro_data():
     session.query(MacroData).delete()  # clear old
 
     for date, row in macro_df.iterrows():
+        # Normalize macro row values into plain Python float/None before ORM construction.
+        normalized = {col: _to_native_scalar(row[col]) for col in macro_df.columns}
+
         entry = MacroData(
             date=date.date(),
-            cpi=row["CPI"],
-            unemployment=row["Unemployment"],
-            fed_funds_rate=row["Fed_Funds_Rate"],
-            gdp=row["GDP"],
-            two_year_yield=row["DGS2"],
-            ten_year_yield=row["DGS10"],
+            cpi=normalized["CPI"],
+            unemployment=normalized["Unemployment"],
+            fed_funds_rate=normalized["Fed_Funds_Rate"],
+            gdp=normalized["GDP"],
+            two_year_yield=normalized["DGS2"],
+            ten_year_yield=normalized["DGS10"],
         )
         session.add(entry)
 
