@@ -1,33 +1,139 @@
+/* ============================================
+   INSIGHTPULSE — Terminal Design System
+   ============================================ */
+
 :root {
-  --bg: #0b0e11;
-  --panel: rgba(22, 27, 34, 0.82);
-  --panel-border: rgba(255, 255, 255, 0.05);
-  --panel-glow: rgba(80, 140, 255, 0.06);
+  /* Backgrounds */
+  --bg: #0a0a0a;
+  --panel: #111111;
+  --panel-hover: #161616;
+  --panel-border: #1e1e1e;
 
-  --text: #e6e6e6;
-  --text-soft: #9ca3af;
-  --text-mute: #6b7280;
+  /* Text hierarchy */
+  --text: #c8c8c8;
+  --text-soft: #787878;
+  --text-mute: #484848;
 
-  --green: #1dd75f;
-  --red: #ff4e4e;
-  --blue: #4aa8ff;
+  /* Accent colors */
+  --green: #00ff41;
+  --red: #ff3333;
+  --amber: #ffaa00;
+  --cyan: #00d4ff;
+  --blue: #4a9eff;
 
-  --radius: 12px;
+  /* Layout */
+  --radius: 2px;
 
-  font-family: "Inter", sans-serif;
-  background: var(--bg);
+  /* Typography */
+  font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+  font-size: 14px;
+  line-height: 1.45;
   color: var(--text);
+  background: var(--bg);
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+html, body, #root {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  width: 100%;
 }
 
 body {
   background: var(--bg);
   color: var(--text);
-  font-family: var(--font);
+  font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+}
+
+h1, h2, h3, h4, h5, h6 {
   margin: 0;
+  font-weight: 600;
 }
 
-.market-card:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.45);
+a {
+  color: var(--cyan);
+  text-decoration: none;
 }
 
+/* ---- Terminal Panel ---- */
+.t-panel {
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius);
+  padding: 0.6rem 0.8rem;
+}
+
+.t-panel-header {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--text-mute);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  padding-bottom: 0.4rem;
+  margin-bottom: 0.5rem;
+  border-bottom: 1px solid var(--panel-border);
+}
+
+/* ---- Blink animation ---- */
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+.t-blink {
+  animation: blink 1s step-end infinite;
+}
+
+/* ---- Scanline overlay ---- */
+.t-scanline::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0, 255, 65, 0.015) 2px,
+    rgba(0, 255, 65, 0.015) 4px
+  );
+  z-index: 1;
+}
+
+/* ---- Scrollbar ---- */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--panel-border);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-mute);
+}
+
+/* ---- Keyboard hint ---- */
+.t-kbd {
+  display: inline-block;
+  font-size: 0.65rem;
+  font-weight: 600;
+  color: var(--text-mute);
+  border: 1px solid var(--panel-border);
+  border-radius: 2px;
+  padding: 0 0.3rem;
+  line-height: 1.5;
+  font-family: inherit;
+}

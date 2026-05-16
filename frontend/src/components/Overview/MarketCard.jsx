@@ -1,100 +1,69 @@
-import React from "react";
-
-export default function MarketCard({ card }) {
+export default function MarketCard({ card, onClick }) {
   const change = card.change_1d;
   const isUp = change > 0;
   const isDown = change < 0;
-
-  const changeColor = isUp
-    ? "var(--green)"
-    : isDown
-    ? "var(--red)"
-    : "var(--text-soft)";
+  const changeColor = isUp ? "var(--green)" : isDown ? "var(--red)" : "var(--text-soft)";
 
   return (
     <div
+      onClick={onClick}
       style={{
-        background: "rgba(28, 33, 40, 0.85)",
-        backdropFilter: "blur(6px)",
-        borderRadius: "12px",
-        padding: "1.1rem 1.2rem",
-        border: "1px solid var(--border)",
-        boxShadow:
-          "0 0 14px rgba(0, 0, 0, 0.35), inset 0 0 0 1px rgba(255,255,255,0.03)",
-        transition: "transform 0.15s ease, box-shadow 0.15s ease",
+        background: "var(--panel)",
+        border: "1px solid var(--panel-border)",
+        borderRadius: "var(--radius)",
+        padding: "0.6rem 0.8rem",
+        cursor: onClick ? "pointer" : "default",
+        transition: "border-color 0.15s",
       }}
-      className="market-card"
+      onMouseEnter={(e) => onClick && (e.currentTarget.style.borderColor = "var(--text-mute)")}
+      onMouseLeave={(e) => onClick && (e.currentTarget.style.borderColor = "var(--panel-border)")}
     >
-      {/* TITLE */}
-      <div
-        style={{
-          fontSize: "0.85rem",
-          color: "var(--text-soft)",
-          marginBottom: "0.35rem",
-          letterSpacing: "0.3px",
-          fontWeight: 500,
-        }}
-      >
+      {/* Symbol */}
+      <div style={{ fontSize: "0.72rem", color: "var(--text-mute)", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: "0.15rem" }}>
         {card.name}
       </div>
 
-      {/* PRICE */}
-      <div
-        style={{
-          fontSize: "1.45rem",
-          fontWeight: 700,
-          marginBottom: "0.15rem",
-          color: "var(--text)",
-        }}
-      >
-        {Number(card.price).toLocaleString(undefined, {
-          minimumFractionDigits: 2,
-          maximumFractionDigits: 2,
-        })}
+      {/* Price */}
+      <div style={{ fontSize: "1.3rem", fontWeight: 700, color: "var(--text)", marginBottom: "0.2rem" }}>
+        {Number(card.price).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
       </div>
 
-      {/* DAILY CHANGE */}
-      <div
-        style={{
-          fontSize: "0.95rem",
-          fontWeight: 600,
-          color: changeColor,
-          marginBottom: "0.7rem",
-        }}
-      >
-        {isUp && "▲ "}
-        {isDown && "▼ "}
-        {change.toFixed(2)}%
-      </div>
-
-      {/* SPARKLINE */}
-      <div
-        style={{
-          height: "38px",
-          width: "100%",
-          borderRadius: "6px",
-          background:
-            "linear-gradient(90deg, rgba(74,168,255,0.25), rgba(74,168,255,0))",
-          position: "relative",
-          overflow: "hidden",
-        }}
-      >
-        <svg
-          width="100%"
-          height="38"
-          viewBox="0 0 100 38"
-          preserveAspectRatio="none"
-        >
+      {/* Change + Sparkline row */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "0.5rem" }}>
+        <span style={{ fontSize: "0.88rem", fontWeight: 600, color: changeColor }}>
+          {isUp ? "+" : ""}{change.toFixed(2)}%
+        </span>
+        <svg width="70" height="28" viewBox="0 0 70 28" preserveAspectRatio="none" style={{ flexShrink: 0 }}>
           <polyline
             fill="none"
-            stroke="#4aa8ff"
+            stroke={changeColor}
             strokeWidth="1.5"
             points={card.sparkline
-              .map((v, i) => `${(i / card.sparkline.length) * 100},${38 - v * 30}`)
+              .map((v, i) => `${(i / card.sparkline.length) * 70},${28 - v * 22}`)
               .join(" ")}
           />
         </svg>
       </div>
+
+      {/* Extra changes if available */}
+      {(card.change_1w != null || card.change_1m != null) && (
+        <div style={{ display: "flex", gap: "0.8rem", marginTop: "0.3rem", fontSize: "0.72rem", color: "var(--text-mute)" }}>
+          {card.change_1w != null && (
+            <span>
+              1W: <span style={{ color: card.change_1w >= 0 ? "var(--green)" : "var(--red)", fontWeight: 600 }}>
+                {card.change_1w >= 0 ? "+" : ""}{card.change_1w.toFixed(2)}%
+              </span>
+            </span>
+          )}
+          {card.change_1m != null && (
+            <span>
+              1M: <span style={{ color: card.change_1m >= 0 ? "var(--green)" : "var(--red)", fontWeight: 600 }}>
+                {card.change_1m >= 0 ? "+" : ""}{card.change_1m.toFixed(2)}%
+              </span>
+            </span>
+          )}
+        </div>
+      )}
     </div>
   );
 }
