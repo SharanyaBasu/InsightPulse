@@ -99,7 +99,46 @@ def api_overview(force_refresh: bool = False):
 
 
 # --- LLM SUMMARY ---
-@app.post("/compute/daily")
+@app.get("/market/summary")
+def get_daily_summary():
+    db: Session = SessionLocal()
+    today = date.today().isoformat()
+
+    try:
+        # Check if summary already exists
+        existing = db.query(MarketSummary).filter(
+            MarketSummary.date == today
+        ).first()
+
+        if existing:
+            return existing.summary
+
+        # Build MarketState object
+        market_state = build_market_state()
+
+        # Store MarketState
+        state_row = MarketState(date=today, data=market_state)
+        db.add(state_row)
+        db.commit()
+
+        # Generate summary
+        summary = generate_summary(market_state)
+
+        # Store summary
+        summary_row = MarketSummary(date=today, summary=summary)
+        db.add(summary_row)
+        db.commit()
+
+        return summary
+
+    except Exception as e:
+        return {"error": str(e)}
+
+    finally:
+        db.close()
+
+
+@app.get("/compute/daily")
 def compute_daily():
     try:
         # build market state object
@@ -126,7 +165,7 @@ def compute_daily():
         print("ERROR in compute/daily:", e)
         return {"error": str(e)}
 
-@app.post("/summary/daily")
+@app.get("/summary/daily")
 def summary_daily():
     try:
         db: Session = SessionLocal()

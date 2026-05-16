@@ -80,12 +80,12 @@ class MarketState(Base):
     __tablename__ = "market_state"
 
     id = Column(Integer, primary_key=True, index=True)
-    date = Column(String, unique=True, index=True)
+    date = Column(Date, unique=True, index=True)
     data = Column(JSON)
 
 class MarketSummary(Base):
     __tablename__ = "market_summary"
 
     id = Column(Integer, primary_key=True, index=True)
-    date = Column(String, unique=True, index=True)
+    date = Column(Date, unique=True, index=True)
     summary = Column(JSON) 
