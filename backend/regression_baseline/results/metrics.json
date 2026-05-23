@@ -1,0 +1,82 @@
+{
+  "sp500_return": {
+    "train_r2": 0.408122509630901,
+    "test_r2": -0.5233528049087919,
+    "train_rmse": 0.03692249835871258,
+    "test_rmse": 0.04444748905568492,
+    "train_mae": 0.03018303558739739,
+    "test_mae": 0.03517549777375232,
+    "n_train": 87,
+    "n_test": 22,
+    "n_features": 7,
+    "excluded_features": [
+      "vix_change"
+    ]
+  },
+  "nasdaq_return": {
+    "train_r2": 0.3470894757607015,
+    "test_r2": -0.3838868526191752,
+    "train_rmse": 0.045880632897785004,
+    "test_rmse": 0.05920794219885788,
+    "train_mae": 0.03602151655428891,
+    "test_mae": 0.049240118820220544,
+    "n_train": 87,
+    "n_test": 22,
+    "n_features": 7,
+    "excluded_features": [
+      "vix_change"
+    ]
+  },
+  "dgs10_change": {
+    "train_r2": 0.34619529030212004,
+    "test_r2": 0.12373738097751019,
+    "train_rmse": 0.20603130632585565,
+    "test_rmse": 0.19396039213038146,
+    "train_mae": 0.16789970912135183,
+    "test_mae": 0.1642209103667938,
+    "n_train": 87,
+    "n_test": 22,
+    "n_features": 8,
+    "excluded_features": []
+  },
+  "gold_return": {
+    "train_r2": 0.4184408977857679,
+    "test_r2": 0.1656133749857589,
+    "train_rmse": 0.027665811668446626,
+    "test_rmse": 0.04685842157013877,
+    "train_mae": 0.021892401993595517,
+    "test_mae": 0.03773992268943233,
+    "n_train": 87,
+    "n_test": 22,
+    "n_features": 8,
+    "excluded_features": []
+  },
+  "oil_return": {
+    "train_r2": 0.30955259536146995,
+    "test_r2": -0.2763019794570589,
+    "train_rmse": 0.1184997634555503,
+    "test_rmse": 0.14300055601281425,
+    "train_mae": 0.0821165787928063,
+    "test_mae": 0.08898196810564989,
+    "n_train": 87,
+    "n_test": 22,
+    "n_features": 7,
+    "excluded_features": [
+      "oil_change"
+    ]
+  },
+  "dxy_return": {
+    "train_r2": 0.2556225094242274,
+    "test_r2": 0.09111263321776197,
+    "train_rmse": 0.015428176270890175,
+    "test_rmse": 0.02000733713604748,
+    "train_mae": 0.012961032319809175,
+    "test_mae": 0.017015116041718455,
+    "n_train": 87,
+    "n_test": 22,
+    "n_features": 7,
+    "excluded_features": [
+      "dxy_change"
+    ]
+  }
+}
