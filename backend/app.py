@@ -99,45 +99,6 @@ def api_overview(force_refresh: bool = False):
 
 
 # --- LLM SUMMARY ---
-@app.get("/market/summary")
-def get_daily_summary():
-    db: Session = SessionLocal()
-    today = date.today().isoformat()
-
-    try:
-        # Check if summary already exists
-        existing = db.query(MarketSummary).filter(
-            MarketSummary.date == today
-        ).first()
-
-        if existing:
-            return existing.summary
-
-        # Build MarketState object
-        market_state = build_market_state()
-
-        # Store MarketState
-        state_row = MarketState(date=today, data=market_state)
-        db.add(state_row)
-        db.commit()
-
-        # Generate summary
-        summary = generate_summary(market_state)
-
-        # Store summary
-        summary_row = MarketSummary(date=today, summary=summary)
-        db.add(summary_row)
-        db.commit()
-
-        return summary
-
-    except Exception as e:
-        return {"error": str(e)}
-
-    finally:
-        db.close()
-
-
 @app.get("/compute/daily")
 def compute_daily():
     try:
@@ -146,15 +107,18 @@ def compute_daily():
 
         db: Session = SessionLocal()
 
-        date_str = market_state["as_of"]
+        try:
+            date_obj = date.fromisoformat(market_state["as_of"])
+        except Exception:
+            return {"error": "Unable to parse market_state['as_of'] into a date"}
 
-        existing = db.query(MarketState).filter(MarketState.date == date_str).first()
+        existing = db.query(MarketState).filter(MarketState.date == date_obj).first()
 
         # if market state object exists for the date, overwrite it, otherwise add to database
         if existing:
             existing.data = market_state
         else:
-            db.add(MarketState(date=date_str, data=market_state))
+            db.add(MarketState(date=date_obj, data=market_state))
 
         db.commit()
         db.close()
@@ -169,35 +133,24 @@ def compute_daily():
 def summary_daily():
     try:
         db: Session = SessionLocal()
+        today = date.today()
 
-        # query market state object by current day
-        state_row = db.query(MarketState).order_by(
-            MarketState.date.desc()
-        ).first()
+        # Return a cached summary if it already exists for today.
+        existing_summary = db.query(MarketSummary).filter(MarketSummary.date == today).first()
+        if existing_summary:
+            db.close()
+            return existing_summary.summary
 
-        # throw error if no market state object for current day found (need to run /compute/daily)
+        # If no summary exists, look for today's MarketState and generate one.
+        state_row = db.query(MarketState).filter(MarketState.date == today).first()
         if not state_row:
             db.close()
-            return {"error": "No MarketState found. Run /compute/daily first."}
-        
-        # generate summary
+            return {"error": "No MarketState found for today. Run /compute/daily first."}
+
         market_state = state_row.data
         summary = generate_summary(market_state)
-        date_str = state_row.date
 
-        existing = db.query(MarketSummary).filter(
-            MarketSummary.date == date_str
-        ).first()
-
-        # if summary for current day already exists, overwrite it, otherwise add to database
-        if existing:
-            existing.summary = summary
-        else:
-            db.add(MarketSummary(
-                date=date_str,
-                summary=summary
-            ))
-
+        db.add(MarketSummary(date=today, summary=summary))
         db.commit()
         db.close()
 
@@ -215,7 +168,7 @@ def debug_market_state():
 
     return [
         {
-            "date": r.date,
+            "date": str(r.date),
             "data": r.data
         }
         for r in rows
@@ -229,7 +182,7 @@ def debug_summary():
 
     return [
         {
-            "date": r.date,
+            "date": str(r.date),
             "summary": r.summary
         }
         for r in rows
