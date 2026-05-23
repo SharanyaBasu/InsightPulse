@@ -125,6 +125,19 @@ a {
   background: var(--text-mute);
 }
 
+/* ---- Scenario Playground responsive grid ---- */
+.scenario-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.5rem;
+}
+
+@media (min-width: 768px) {
+  .scenario-grid {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr);
+  }
+}
+
 /* ---- Keyboard hint ---- */
 .t-kbd {
   display: inline-block;
