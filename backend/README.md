@@ -22,6 +22,8 @@ DATABASE_URL=your_database_url
 
 `DATABASE_URL` is optional. If it is missing, the backend uses local SQLite at `backend/insightpulse.db`.
 
+Note: `.vscode/settings.json` only configures an optional SQLTools connection to the local SQLite database. The backend runtime database is controlled by `DATABASE_URL` in `backend/.env`.
+
 ## Run
 
 Create database tables:
