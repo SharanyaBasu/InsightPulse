@@ -1,6 +1,10 @@
 import TerminalPanel from "../components/Terminal/TerminalPanel";
+import ScenarioSummaryStrip from "../components/Scenario/ScenarioSummaryStrip";
+import { MOCK_SCENARIO_RESULT } from "../mocks/scenarioResult";
 
 export default function ScenarioPage() {
+  const result = MOCK_SCENARIO_RESULT;
+
   return (
     <div>
       {/* Page header */}
@@ -54,9 +58,11 @@ export default function ScenarioPage() {
         </TerminalPanel>
 
         <TerminalPanel title="Results">
+          <ScenarioSummaryStrip summary={result?.summary} />
+
           <div
             style={{
-              minHeight: 360,
+              minHeight: 300,
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
@@ -66,9 +72,7 @@ export default function ScenarioPage() {
               padding: "1rem",
             }}
           >
-            Scenario results will appear here
-            <br />
-            after running a scenario
+            Detailed scenario results will appear here
           </div>
         </TerminalPanel>
       </div>
