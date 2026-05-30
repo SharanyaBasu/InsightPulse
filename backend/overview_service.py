@@ -315,6 +315,10 @@ def build_overview_snapshot(force_refresh=False):
     from correlation_service import build_correlations
     correlations = build_correlations(market_df, macro_daily)
 
+    # Regime classification (uses correlations + VIX + sector dispersion)
+    from regime_service import classify_regime
+    regime = classify_regime(market_df, macro_daily, correlations)
+
     # ------------------------
     # Market Cards
     # ------------------------
@@ -453,6 +457,7 @@ def build_overview_snapshot(force_refresh=False):
         "narrative": narrative,
         "cross_asset": cross_asset,
         "correlations": correlations,
+        "regime": regime,
         "last_updated": pd.Timestamp.utcnow().isoformat(),
     }
 

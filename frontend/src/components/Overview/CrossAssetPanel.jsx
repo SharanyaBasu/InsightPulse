@@ -1,56 +1,40 @@
-import React from "react";
-
 const GROUPS = ["Equities", "Rates", "FX", "Commodities", "Crypto"];
 
 function SparklineSVG({ data, change1d }) {
   if (!data || data.length < 2) return null;
-
-  const stroke =
-    change1d > 0 ? "var(--green)" : change1d < 0 ? "var(--red)" : "#4aa8ff";
-
+  const stroke = change1d > 0 ? "var(--green)" : change1d < 0 ? "var(--red)" : "var(--text-mute)";
   const min = Math.min(...data);
   const max = Math.max(...data);
   const range = max - min || 1;
   const w = 60;
-  const h = 24;
-
+  const h = 22;
   const points = data
-    .map((v, i) => {
-      const x = (i / (data.length - 1)) * w;
-      const y = h - ((v - min) / range) * (h - 2) - 1;
-      return `${x},${y}`;
-    })
+    .map((v, i) => `${(i / (data.length - 1)) * w},${h - ((v - min) / range) * (h - 2) - 1}`)
     .join(" ");
 
   return (
     <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} style={{ display: "block" }}>
-      <polyline fill="none" stroke={stroke} strokeWidth="1.5" points={points} />
+      <polyline fill="none" stroke={stroke} strokeWidth="1.3" points={points} />
     </svg>
   );
 }
 
 function fmt(price) {
   if (price == null) return "—";
-  return Number(price).toLocaleString(undefined, {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
+  return Number(price).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-function ChangeCell({ change1d }) {
-  if (change1d == null) return <span style={{ color: "var(--text-soft)" }}>—</span>;
-  const isUp = change1d > 0;
-  const isDown = change1d < 0;
-  const color = isUp ? "var(--green)" : isDown ? "var(--red)" : "var(--text-soft)";
-  const arrow = isUp ? "▲" : isDown ? "▼" : "→";
+function ChangeCell({ value }) {
+  if (value == null) return <span style={{ color: "var(--text-mute)" }}>—</span>;
+  const color = value > 0 ? "var(--green)" : value < 0 ? "var(--red)" : "var(--text-mute)";
   return (
-    <span style={{ color, fontSize: "0.88rem" }}>
-      {arrow} {Math.abs(change1d).toFixed(2)}%
+    <span style={{ color, fontSize: "0.82rem", fontVariantNumeric: "tabular-nums" }}>
+      {value > 0 ? "+" : ""}{Math.abs(value).toFixed(2)}%
     </span>
   );
 }
 
-export default function CrossAssetPanel({ assets }) {
+export default function CrossAssetPanel({ assets, onRowClick }) {
   if (!assets || assets.length === 0) return null;
 
   const grouped = GROUPS.reduce((acc, g) => {
@@ -60,25 +44,39 @@ export default function CrossAssetPanel({ assets }) {
   }, {});
 
   return (
-    <div
-      style={{
-        background: "var(--panel)",
-        borderRadius: "12px",
-        border: "1px solid var(--panel-border)",
-        boxShadow: "0 0 10px var(--panel-glow)",
-        padding: "1.4rem 1.6rem",
-      }}
-    >
+    <div style={{ background: "var(--panel)", border: "1px solid var(--panel-border)", borderRadius: "var(--radius)" }}>
+      {/* Header row */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "minmax(140px, 2fr) minmax(90px, 1fr) minmax(80px, 1fr) 60px",
+          padding: "0.4rem 1rem",
+          borderBottom: "1px solid var(--panel-border)",
+          fontSize: "0.7rem",
+          fontWeight: 600,
+          color: "var(--text-mute)",
+          textTransform: "uppercase",
+          letterSpacing: "0.1em",
+        }}
+      >
+        <span>Name</span>
+        <span style={{ textAlign: "right" }}>Price</span>
+        <span style={{ textAlign: "right" }}>1D Chg</span>
+        <span style={{ textAlign: "right" }}>30D</span>
+      </div>
+
       {Object.entries(grouped).map(([group, rows], gi) => (
         <div key={group}>
+          {/* Group header */}
           <div
             style={{
-              fontSize: "0.7rem",
+              fontSize: "0.68rem",
               letterSpacing: "0.12em",
-              color: "var(--text-mute)",
+              color: "var(--green)",
               textTransform: "uppercase",
-              marginBottom: "0.5rem",
-              marginTop: gi === 0 ? 0 : "1.2rem",
+              padding: "0.5rem 1rem 0.25rem",
+              marginTop: gi === 0 ? 0 : "0.15rem",
+              fontWeight: 700,
             }}
           >
             {group}
@@ -86,38 +84,30 @@ export default function CrossAssetPanel({ assets }) {
           {rows.map((asset) => (
             <div
               key={asset.symbol || asset.name}
+              onClick={() => onRowClick?.(asset)}
               style={{
-                display: "flex",
+                display: "grid",
+                gridTemplateColumns: "minmax(140px, 2fr) minmax(90px, 1fr) minmax(80px, 1fr) 60px",
                 alignItems: "center",
-                justifyContent: "space-between",
-                padding: "0.5rem 0",
-                borderBottom: "1px solid rgba(255,255,255,0.04)",
+                padding: "0.35rem 1rem",
+                borderBottom: "1px solid rgba(255,255,255,0.025)",
+                fontSize: "0.85rem",
+                cursor: onRowClick ? "pointer" : "default",
+                transition: "background 0.1s",
               }}
+              onMouseEnter={(e) => onRowClick && (e.currentTarget.style.background = "var(--panel-hover)")}
+              onMouseLeave={(e) => onRowClick && (e.currentTarget.style.background = "transparent")}
             >
-              <span
-                style={{
-                  color: "var(--text-soft)",
-                  fontSize: "0.88rem",
-                  minWidth: "160px",
-                }}
-              >
+              <span style={{ color: "var(--text-soft)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                 {asset.name}
               </span>
-              <span
-                style={{
-                  color: "var(--text)",
-                  fontSize: "0.95rem",
-                  fontWeight: 600,
-                  minWidth: "90px",
-                  textAlign: "right",
-                }}
-              >
+              <span style={{ textAlign: "right", fontWeight: 600, fontVariantNumeric: "tabular-nums" }}>
                 {fmt(asset.price)}
               </span>
-              <span style={{ minWidth: "70px", textAlign: "right" }}>
-                <ChangeCell change1d={asset.change_1d} />
+              <span style={{ textAlign: "right" }}>
+                <ChangeCell value={asset.change_1d} />
               </span>
-              <div style={{ width: "60px", display: "flex", justifyContent: "flex-end" }}>
+              <div style={{ display: "flex", justifyContent: "flex-end" }}>
                 <SparklineSVG data={asset.sparkline} change1d={asset.change_1d} />
               </div>
             </div>
