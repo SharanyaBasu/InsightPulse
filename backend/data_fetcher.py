@@ -2,11 +2,13 @@ from datetime import datetime, timezone
 
 from db import SessionLocal
 from providers.coingecko_provider import fetch_crypto_quotes
+from providers.finnhub_provider import fetch_equity_quotes
 from providers.fred_provider import fetch_macro_data
 from providers.yahoo_provider import fetch_market_data
-from schemas.source_types import COINGECKO, FRED, YAHOO
+from schemas.source_types import COINGECKO, FINNHUB, FRED, YAHOO
 from services.ingestion_service import (
     ingest_crypto_quotes,
+    ingest_equity_quotes,
     ingest_macro_data,
     ingest_market_data,
     record_ingestion_run,
@@ -128,9 +130,47 @@ def get_crypto_quotes():
         db.close()
 
 
+def get_equity_quotes():
+    started_at = datetime.now(timezone.utc).replace(tzinfo=None)
+    db = SessionLocal()
+    rows = None
+
+    try:
+        rows = fetch_equity_quotes()
+        rows_written = ingest_equity_quotes(db, rows)
+        record_ingestion_run(
+            db=db,
+            source=FINNHUB,
+            job_name="equity_quotes_refresh",
+            started_at=started_at,
+            finished_at=datetime.now(timezone.utc).replace(tzinfo=None),
+            status="success",
+            rows_fetched=len(rows),
+            rows_written=rows_written,
+        )
+        return rows
+    except Exception as exc:
+        db.rollback()
+        record_ingestion_run(
+            db=db,
+            source=FINNHUB,
+            job_name="equity_quotes_refresh",
+            started_at=started_at,
+            finished_at=datetime.now(timezone.utc).replace(tzinfo=None),
+            status="failed",
+            rows_fetched=len(rows) if rows is not None else 0,
+            rows_written=0,
+            error_message=str(exc),
+        )
+        raise
+    finally:
+        db.close()
+
+
 
 if __name__ == "__main__":
     get_market_data()
     get_macro_data()
     get_crypto_quotes()
+    get_equity_quotes()
 

@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 
 import pandas as pd
 
-from models import CryptoQuote, IngestionRun, MacroData, MarketData
+from models import CryptoQuote, EquityQuote, IngestionRun, MacroData, MarketData
 
 
 def _to_native_scalar(value):
@@ -125,6 +125,33 @@ def ingest_crypto_quotes(db, rows) -> int:
     db.commit()
     rows_written = len(rows)
     print(f"Saved {rows_written} crypto quote rows to database.")
+    return rows_written
+
+
+def ingest_equity_quotes(db, rows) -> int:
+    timestamp = datetime.now(timezone.utc).replace(tzinfo=None)
+
+    for row in rows:
+        quote = EquityQuote(
+            symbol=row["symbol"],
+            timestamp=row["timestamp"],
+            price=_to_native_scalar(row["price"]),
+            change=_to_native_scalar(row["change"]),
+            percent_change=_to_native_scalar(row["percent_change"]),
+            high=_to_native_scalar(row["high"]),
+            low=_to_native_scalar(row["low"]),
+            open=_to_native_scalar(row["open"]),
+            previous_close=_to_native_scalar(row["previous_close"]),
+            volume=_to_native_scalar(row["volume"]),
+            source=row["source"],
+            created_at=timestamp,
+            updated_at=timestamp,
+        )
+        db.add(quote)
+
+    db.commit()
+    rows_written = len(rows)
+    print(f"Saved {rows_written} equity quote rows to database.")
     return rows_written
 
 
