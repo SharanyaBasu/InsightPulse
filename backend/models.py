@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, Float, Date
+from sqlalchemy import Column, Date, DateTime, Float, Integer, String, Text
 from db import Base
 
 class MarketData(Base):
@@ -74,3 +74,68 @@ class MacroData(Base):
     # --- Added U.S. Treasury Yields ---
     two_year_yield = Column(Float)    # DGS2 (%)
     ten_year_yield = Column(Float)    # DGS10 (%)
+
+
+class EquityQuote(Base):
+    __tablename__ = "equity_quotes"
+
+    id = Column(Integer, primary_key=True, index=True)
+    symbol = Column(String)
+    timestamp = Column(DateTime, index=True)
+    price = Column(Float)
+    change = Column(Float)
+    percent_change = Column(Float)
+    high = Column(Float)
+    low = Column(Float)
+    open = Column(Float)
+    previous_close = Column(Float)
+    volume = Column(Float)
+    source = Column(String)
+    created_at = Column(DateTime)
+    updated_at = Column(DateTime)
+
+
+class CryptoQuote(Base):
+    __tablename__ = "crypto_quotes"
+
+    id = Column(Integer, primary_key=True, index=True)
+    symbol = Column(String)
+    name = Column(String)
+    timestamp = Column(DateTime, index=True)
+    price = Column(Float)
+    market_cap = Column(Float)
+    volume_24h = Column(Float)
+    change_24h = Column(Float)
+    source = Column(String)
+    created_at = Column(DateTime)
+    updated_at = Column(DateTime)
+
+
+class IngestionRun(Base):
+    __tablename__ = "ingestion_runs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    source = Column(String)
+    job_name = Column(String)
+    started_at = Column(DateTime)
+    finished_at = Column(DateTime)
+    status = Column(String)
+    rows_fetched = Column(Integer)
+    rows_written = Column(Integer)
+    error_message = Column(Text)
+    created_at = Column(DateTime)
+
+
+class CalculatedMetric(Base):
+    __tablename__ = "calculated_metrics"
+
+    id = Column(Integer, primary_key=True, index=True)
+    metric_name = Column(String)
+    category = Column(String)
+    timestamp = Column(DateTime, index=True)
+    value = Column(Float)
+    window = Column(String)
+    source_dependencies = Column(Text)
+    calculation_version = Column(String)
+    created_at = Column(DateTime)
+    updated_at = Column(DateTime)
