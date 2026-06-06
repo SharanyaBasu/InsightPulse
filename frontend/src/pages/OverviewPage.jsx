@@ -8,8 +8,12 @@ import SectorTile from "../components/Overview/SectorTile";
 import RegionTile from "../components/Overview/RegionTile";
 import MacroChips from "../components/Overview/MacroChips";
 import YieldPanel from "../components/Overview/YieldPanel";
+import useScenario from "../hooks/useScenario";
+import ScenarioDeltaCards from "../components/Overview/ScenarioDeltaCards";
+import SectorHeatmap from "../components/Overview/SectorHeatmap";
 
 export default function OverviewPage() {
+  const { data: scenario } = useScenario(); 
   const { data, loading } = useOverview();
 
   if (loading) return <p style={{ padding: "2rem" }}>Loading...</p>;
@@ -151,6 +155,8 @@ export default function OverviewPage() {
           <SectorTile key={s.symbol} tile={s} />
         ))}
       </div>
+      {scenario && <ScenarioDeltaCards assets={scenario.assets} />}
+      {scenario && <SectorHeatmap sectors={scenario.sectors} />}
     </div>
   );
 }
