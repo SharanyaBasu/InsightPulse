@@ -4,12 +4,15 @@ import useAssetHistory from "../hooks/useAssetHistory";
 import TerminalLoader from "../components/Terminal/TerminalLoader";
 import TerminalPanel from "../components/Terminal/TerminalPanel";
 import ChartModal from "../components/Terminal/ChartModal";
-import Narrative from "../components/Overview/Narrative";
+import MarketSummary from "../components/Overview/MarketSummary";
 import MarketCard from "../components/Overview/MarketCard";
 import RegimeLabel from "../components/Overview/RegimeLabel";
+import useDailySummary from "../hooks/useDailySummary";
 
 export default function DashboardPage() {
   const { overview, loading } = useMarketData();
+  const { summary, loading: summaryLoading, error: summaryError, refresh: refreshSummary } =
+    useDailySummary();
   const [selectedAsset, setSelectedAsset] = useState(null);
   const { data: chartData } = useAssetHistory(selectedAsset?.symbol);
 
@@ -49,8 +52,13 @@ export default function DashboardPage() {
         </div>
       </TerminalPanel>
 
-      {/* Narrative */}
-      {overview.narrative && <Narrative text={overview.narrative} />}
+      {/* LLM daily market summary */}
+      <MarketSummary
+        summary={summary}
+        loading={summaryLoading}
+        error={summaryError}
+        onRetry={refreshSummary}
+      />
 
       {/* Market Cards Strip */}
       <div
