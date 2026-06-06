@@ -2,7 +2,13 @@ from fastapi import FastAPI
 from sqlalchemy.orm import Session
 from db import SessionLocal
 from models import MarketData, MacroData, MarketState, MarketSummary
-from data_fetcher import get_market_data
+from data_fetcher import (
+    get_calculated_metrics,
+    get_crypto_quotes,
+    get_equity_quotes,
+    get_macro_data,
+    get_market_data,
+)
 from fastapi.responses import JSONResponse
 from overview_service import build_overview_snapshot
 from market_state_service import build_market_state
@@ -99,63 +105,105 @@ def api_overview(force_refresh: bool = False):
 
 
 # --- LLM SUMMARY ---
-@app.get("/compute/daily")
-def compute_daily():
+
+INGESTION_STEPS = (
+    ("market_data", get_market_data),
+    ("macro_data", get_macro_data),
+    ("crypto_quotes", get_crypto_quotes),
+    ("equity_quotes", get_equity_quotes),
+    ("calculated_metrics", get_calculated_metrics),
+)
+
+
+def _run_daily_ingestion() -> list[dict]:
+    report = []
+    for step_name, step_fn in INGESTION_STEPS:
+        try:
+            result = step_fn()
+            rows = len(result) if hasattr(result, "__len__") else result
+            report.append({
+                "step": step_name,
+                "status": "success",
+                "rows": rows,
+            })
+        except Exception as exc:
+            report.append({
+                "step": step_name,
+                "status": "failed",
+                "error": str(exc),
+            })
+            raise RuntimeError(f"Ingestion failed at step '{step_name}': {exc}") from exc
+    return report
+
+
+def _save_market_state(db: Session, market_state: dict) -> None:
+    date_obj = date.fromisoformat(market_state["as_of"])
+    existing = db.query(MarketState).filter(MarketState.date == date_obj).first()
+    if existing:
+        existing.data = market_state
+    else:
+        db.add(MarketState(date=date_obj, data=market_state))
+    db.commit()
+
+
+def _get_or_compute_today_market_state(db: Session, run_ingestion: bool) -> dict:
+    today = date.today()
+    existing = db.query(MarketState).filter(MarketState.date == today).first()
+    if existing:
+        return existing.data
+
+    if run_ingestion:
+        _run_daily_ingestion()
+
+    market_state = build_market_state(db)
+    _save_market_state(db, market_state)
+    return market_state
+
+
+@app.get("/api/compute/daily")
+def compute_daily(skip_ingestion: bool = False):
     try:
-        # build market state object
-        market_state = build_market_state()
+        ingestion_report = []
+        if not skip_ingestion:
+            ingestion_report = _run_daily_ingestion()
 
         db: Session = SessionLocal()
-
         try:
-            date_obj = date.fromisoformat(market_state["as_of"])
-        except Exception:
-            return {"error": "Unable to parse market_state['as_of'] into a date"}
+            market_state = build_market_state(db)
+            _save_market_state(db, market_state)
+        finally:
+            db.close()
 
-        existing = db.query(MarketState).filter(MarketState.date == date_obj).first()
-
-        # if market state object exists for the date, overwrite it, otherwise add to database
-        if existing:
-            existing.data = market_state
-        else:
-            db.add(MarketState(date=date_obj, data=market_state))
-
-        db.commit()
-        db.close()
-
-        return market_state
+        return {
+            "ingestion": ingestion_report,
+            "market_state": market_state,
+        }
 
     except Exception as e:
         print("ERROR in compute/daily:", e)
         return {"error": str(e)}
 
-@app.get("/summary/daily")
+@app.get("/api/summary/daily")
 def summary_daily():
     try:
         db: Session = SessionLocal()
-        today = date.today()
+        try:
+            today = date.today()
 
-        # Return a cached summary if it already exists for today.
-        existing_summary = db.query(MarketSummary).filter(MarketSummary.date == today).first()
-        if existing_summary:
+            existing_summary = db.query(MarketSummary).filter(MarketSummary.date == today).first()
+            if existing_summary:
+                return existing_summary.summary
+
+            market_state = _get_or_compute_today_market_state(db, run_ingestion=True)
+            summary = generate_summary(market_state)
+
+            db.add(MarketSummary(date=today, summary=summary))
+            db.commit()
+
+            return summary
+        finally:
             db.close()
-            return existing_summary.summary
 
-        # If no summary exists, look for today's MarketState and generate one.
-        state_row = db.query(MarketState).filter(MarketState.date == today).first()
-        if not state_row:
-            db.close()
-            return {"error": "No MarketState found for today. Run /compute/daily first."}
-
-        market_state = state_row.data
-        summary = generate_summary(market_state)
-
-        db.add(MarketSummary(date=today, summary=summary))
-        db.commit()
-        db.close()
-
-        return summary
-    
     except Exception as e:
         print("ERROR in /summary/daily:", e)
         return {"error": str(e)}
