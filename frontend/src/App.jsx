@@ -6,6 +6,7 @@ import CrossAssetPage from "./pages/CrossAssetPage";
 import MacroPage from "./pages/MacroPage";
 import SectorsPage from "./pages/SectorsPage";
 import SignalsPage from "./pages/SignalsPage";
+import ScenarioPage from "./pages/ScenarioPage";
 
 export default function App() {
   return (
@@ -18,6 +19,7 @@ export default function App() {
             <Route path="macro" element={<MacroPage />} />
             <Route path="sectors" element={<SectorsPage />} />
             <Route path="signals" element={<SignalsPage />} />
+            <Route path="scenario" element={<ScenarioPage />} />
           </Route>
         </Routes>
       </BrowserRouter>
