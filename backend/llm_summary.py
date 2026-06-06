@@ -5,7 +5,6 @@ import google.generativeai as genai
 
 load_dotenv()
 
-# Configure Gemini API key
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 
 model = genai.GenerativeModel("gemini-2.5-flash")
@@ -34,14 +33,14 @@ SUMMARY_SCHEMA = {
                 "drivers": {
                     "type": "array",
                     "items": {"type": "string"},
-                }
+                },
             },
-            "required": ["label", "probability", "drivers"]
+            "required": ["label", "probability", "drivers"],
         },
         "limitations": {
             "type": "array",
             "items": {"type": "string"},
-        }
+        },
     },
     "required": [
         "headline",
@@ -49,25 +48,31 @@ SUMMARY_SCHEMA = {
         "key_changes",
         "risks_to_watch",
         "mood_5d",
-        "limitations"
-    ]
+        "limitations",
+    ],
 }
 
-def generate_summary(market_state: dict) -> dict:
-    prompt = f"""
-    You are InsightPulse's market narrative generator.
+SYSTEM_PROMPT = """You are InsightPulse's market narrative generator.
 
-    Rules:
-    - Use ONLY the information in the provided MarketState JSON.
-    - Do NOT invent events, news, or macro explanations not present.
-    - If evidence is mixed or weak, mention uncertainty in "limitations".
-    - Return ONLY valid JSON matching the schema.
-    - For array fields like "regime_summary", "key_changes", "risks_to_watch", "drivers" and "limitations":
-        - Make sure "regime_summary" has 2 to 4 items.
-        - Make sure "key_changes" has 2 to 5 items.
-        - Make sure "risks_to_watch" has 1 to 3 items.
-        - Make sure "drivers" has 1 to 3 items.
-        - Make sure "limitations" has 1 to 3 items.
+Rules:
+- Use ONLY the information in the provided MarketState JSON.
+- Do NOT invent events, news, or macro explanations not present.
+- If evidence is mixed or weak, mention uncertainty in "limitations".
+- Return ONLY valid JSON matching the schema.
+
+Guidelines:
+- No investment advice (avoid buy, sell, should, recommend).
+- Write a neutral, descriptive daily summary grounded in regime, drivers,
+  asset_class_snapshot, stress_flags, and mood_5d.
+- Include specific numbers from drivers where relevant.
+- Set mood_5d.probability from mood_5d.prob in the input.
+- Only list risks present in stress_flags; leave risks_to_watch empty if none are active.
+- correlation_shifts may be empty — do not fabricate correlation narratives.
+"""
+
+
+def generate_summary(market_state: dict) -> dict:
+    prompt = f"""{SYSTEM_PROMPT}
 
     MarketState JSON:
     {json.dumps(market_state, indent=2)}
@@ -78,8 +83,11 @@ def generate_summary(market_state: dict) -> dict:
         generation_config={
             "temperature": 0.2,
             "response_mime_type": "application/json",
-            "response_schema": SUMMARY_SCHEMA
-        }
+            "response_schema": SUMMARY_SCHEMA,
+        },
     )
 
-    return json.loads(response.text)
+    parsed = json.loads(response.text)
+    parsed["as_of"] = market_state.get("as_of")
+    parsed["regime_label"] = market_state.get("regime", {}).get("label")
+    return parsed
