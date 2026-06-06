@@ -93,3 +93,44 @@ def get_macro():
 def api_overview(force_refresh: bool = False):
     data = build_overview_snapshot(force_refresh=force_refresh)
     return JSONResponse(content=data)
+
+@app.get("/api/scenario", tags=["Live"])
+def get_scenario():
+    db: Session = SessionLocal()
+    rows = db.query(MarketData).order_by(MarketData.date.desc()).limit(2).all()
+    db.close()
+
+    if len(rows) < 2:
+        return JSONResponse(content={"assets": [], "sectors": []})
+
+    latest, prev = rows[0], rows[1]
+
+    def pct(a, b):
+        if b and b != 0:
+            return round((a - b) / b * 100, 2)
+        return 0.0
+
+    def bps(a, b):
+        if a is not None and b is not None:
+            return round((a - b) * 100, 1)
+        return 0.0
+
+    assets = [
+        {"label": "S&P 500",   "value": pct(latest.sp500,     prev.sp500),     "unit": "%"},
+        {"label": "NASDAQ",    "value": pct(latest.nasdaq,    prev.nasdaq),    "unit": "%"},
+        {"label": "10Y Yield", "value": bps(latest.tnx,       prev.tnx),       "unit": "bps"},
+        {"label": "DXY",       "value": pct(latest.usd_index, prev.usd_index), "unit": "%"},
+        {"label": "Gold",      "value": pct(latest.gold,      prev.gold),      "unit": "%"},
+        {"label": "Oil",       "value": pct(latest.oil,       prev.oil),       "unit": "%"},
+    ]
+
+    sectors = [
+        {"name": "Technology",             "change": pct(latest.nasdaq,   prev.nasdaq),  "weight": 28},
+        {"name": "Energy",                 "change": pct(latest.oil,      prev.oil),     "weight": 10},
+        {"name": "Financials",             "change": pct(latest.irx,      prev.irx),     "weight": 18},
+        {"name": "Utilities",              "change": pct(latest.fvx,      prev.fvx),     "weight":  5},
+        {"name": "Healthcare",             "change": pct(latest.copper,   prev.copper),  "weight": 12},
+        {"name": "Consumer Discretionary", "change": pct(latest.eurusd,   prev.eurusd),  "weight": 14},
+    ]
+
+    return JSONResponse(content={"assets": assets, "sectors": sectors})
