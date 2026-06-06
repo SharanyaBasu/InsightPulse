@@ -1,44 +1,30 @@
 export default function MacroChips({ macro }) {
   const entries = [
     ["CPI", macro.cpi.value, macro.cpi.direction],
-    ["Unemployment", macro.unemployment.value, macro.unemployment.direction],
-    ["Policy Rate", macro.policy_rate.value, macro.policy_rate.direction],
+    ["UNEMP", macro.unemployment.value, macro.unemployment.direction],
+    ["RATE", macro.policy_rate.value, macro.policy_rate.direction],
   ];
 
-  const arrow = (d) =>
-    d === "up" ? "↑" : d === "down" ? "↓" : "→";
-
-  const arrowColor = (d) =>
-    d === "up" ? "var(--red)" : d === "down" ? "var(--green)" : "var(--text-soft)";
+  const arrow = (d) => (d === "up" ? "▲" : d === "down" ? "▼" : "—");
+  const arrowColor = (d) => (d === "up" ? "var(--red)" : d === "down" ? "var(--green)" : "var(--text-mute)");
 
   return (
-    <div style={{ marginTop: "2rem" }}>
-      <h3 style={{ color: "var(--blue)", marginBottom: "1rem" }}>
-        Macro Snapshot
-      </h3>
-
-      <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap" }}>
-        {entries.map(([label, value, dir]) => (
-          <div
-            key={label}
-            style={{
-              background: "var(--panel)",
-              padding: "0.6rem 1rem",
-              borderRadius: "var(--radius)",
-              border: "1px solid var(--panel-border)",
-              display: "flex",
-              alignItems: "center",
-              gap: "0.5rem",
-            }}
-          >
-            <strong>{label}:</strong>
-            <span>{value.toFixed(2)}</span>
-            <span style={{ color: arrowColor(dir), fontWeight: 700 }}>
-              {arrow(dir)}
-            </span>
-          </div>
-        ))}
-      </div>
+    <div>
+      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.9rem" }}>
+        <tbody>
+          {entries.map(([label, value, dir]) => (
+            <tr key={label} style={{ borderBottom: "1px solid var(--panel-border)" }}>
+              <td style={{ padding: "0.5rem 0", color: "var(--text-mute)", width: "80px" }}>{label}</td>
+              <td style={{ padding: "0.5rem 0", textAlign: "right", fontWeight: 600, fontVariantNumeric: "tabular-nums", fontSize: "1rem" }}>
+                {value.toFixed(2)}
+              </td>
+              <td style={{ padding: "0.5rem 0", textAlign: "right", width: "35px", color: arrowColor(dir), fontWeight: 700, fontSize: "0.9rem" }}>
+                {arrow(dir)}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }

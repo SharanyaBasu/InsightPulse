@@ -3,27 +3,18 @@ export default function Narrative({ text }) {
     <div
       style={{
         background: "var(--panel)",
-        padding: "1rem 1.4rem",
-        borderRadius: "var(--radius)",
+        padding: "0.5rem 0.8rem",
         border: "1px solid var(--panel-border)",
-        boxShadow: "0 0 10px var(--panel-glow)",
-        marginBottom: "1.6rem",
+        borderRadius: "var(--radius)",
+        marginBottom: "0.8rem",
         display: "flex",
-        alignItems: "center",
-        gap: "0.8rem",
+        alignItems: "flex-start",
+        gap: "0.5rem",
+        fontSize: "0.8rem",
       }}
     >
-      <div
-        style={{
-          width: "8px",
-          height: "8px",
-          borderRadius: "50%",
-          background: "var(--blue)",
-        }}
-      />
-      <span style={{ fontSize: "1.05rem", color: "var(--text-soft)" }}>
-        {text}
-      </span>
+      <span style={{ color: "var(--green)", fontWeight: 700, flexShrink: 0 }}>{">"}</span>
+      <span style={{ color: "var(--text-soft)", lineHeight: 1.5 }}>{text}</span>
     </div>
   );
 }

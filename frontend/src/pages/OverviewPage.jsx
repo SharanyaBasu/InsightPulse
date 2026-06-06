@@ -8,6 +8,9 @@ import SectorTile from "../components/Overview/SectorTile";
 import RegionTile from "../components/Overview/RegionTile";
 import MacroChips from "../components/Overview/MacroChips";
 import YieldPanel from "../components/Overview/YieldPanel";
+import CrossAssetPanel from "../components/Overview/CrossAssetPanel";
+import CorrelationMonitor from "../components/Overview/CorrelationMonitor";
+import RegimeLabel from "../components/Overview/RegimeLabel";
 
 export default function OverviewPage() {
   const { data, loading } = useOverview();
@@ -50,19 +53,17 @@ export default function OverviewPage() {
         </p>
       </div>
 
-      {/* NARRATIVE STRIP */}
-      <div
-        style={{
-          background: "var(--panel)",
-          padding: "1.2rem 1.6rem",
-          borderRadius: "10px",
-          marginBottom: "2rem",
-          border: "1px solid var(--border)",
-          boxShadow: "0 0 20px rgba(0,0,0,0.15)",
-        }}
-      >
-        <Narrative text={data.narrative} />
-      </div>
+      {/* REGIME LABEL */}
+      {data.regime && (
+        <div style={{ marginBottom: "1.5rem" }}>
+          <h2 style={{ color: "var(--blue)", marginBottom: "0.3rem" }}>Macro Regime</h2>
+          <p style={{ color: "var(--text-mute)", fontSize: "0.82rem", marginBottom: "0.8rem", margin: "0 0 0.8rem 0" }}>
+            A regime classifies the current structural state of the macro environment using cross-asset correlations, volatility, and sector dispersion — helping interpret why markets are moving, not just what is moving.
+          </p>
+          <RegimeLabel regime={data.regime} />
+        </div>
+      )}
+
 
       {/* MARKET STRIP (Bloomberg-style wide band) */}
       <div
@@ -121,6 +122,28 @@ export default function OverviewPage() {
           <MacroChips macro={data.macro} />
         </div>
       </div>
+
+      {/* CROSS-ASSET SNAPSHOT */}
+      {data.cross_asset && (
+        <>
+          <h2 style={{ color: "var(--blue)", marginBottom: "1rem" }}>Cross-Asset Snapshot</h2>
+          <div style={{ marginBottom: "3rem" }}>
+            <CrossAssetPanel assets={data.cross_asset} />
+          </div>
+        </>
+      )}
+
+      {/* CORRELATION MONITOR */}
+      {data.correlations && (
+        <>
+          <h2 style={{ color: "var(--blue)", marginBottom: "1rem" }}>Regime & Correlation Monitor</h2>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: "1.4rem", marginBottom: "3rem" }}>
+            {data.correlations.map(pair => (
+              <CorrelationMonitor key={pair.key} pairs={[pair]} />
+            ))}
+          </div>
+        </>
+      )}
 
       {/* REGIONS */}
       <h2 style={{ color: "var(--blue)", marginBottom: "1rem" }}>Regions</h2>
