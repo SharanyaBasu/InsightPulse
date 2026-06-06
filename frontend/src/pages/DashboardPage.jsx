@@ -7,6 +7,11 @@ import ChartModal from "../components/Terminal/ChartModal";
 import Narrative from "../components/Overview/Narrative";
 import MarketCard from "../components/Overview/MarketCard";
 import RegimeLabel from "../components/Overview/RegimeLabel";
+import YieldPanel from "../components/Overview/YieldPanel";
+import MacroChips from "../components/Overview/MacroChips";
+import CorrelationMonitor from "../components/Overview/CorrelationMonitor";
+import RegionTile from "../components/Overview/RegionTile";
+import SectorTile from "../components/Overview/SectorTile";
 
 export default function DashboardPage() {
   const { overview, loading } = useMarketData();
@@ -105,6 +110,51 @@ export default function DashboardPage() {
           })}
         </TerminalPanel>
       </div>
+
+      {/* Rates + Macro */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem", marginTop: "0.5rem" }}>
+        {overview.yield && (
+          <TerminalPanel title="Rates & Curve">
+            <YieldPanel yieldData={overview.yield} />
+          </TerminalPanel>
+        )}
+        {overview.macro && (
+          <TerminalPanel title="Macro">
+            <MacroChips macro={overview.macro} />
+          </TerminalPanel>
+        )}
+      </div>
+
+      {/* Cross-Asset Correlations */}
+      {overview.correlations?.length > 0 && (
+        <TerminalPanel title="Cross-Asset Correlations" style={{ marginTop: "0.5rem" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: "0.5rem" }}>
+            <CorrelationMonitor pairs={overview.correlations} />
+          </div>
+        </TerminalPanel>
+      )}
+
+      {/* Regions */}
+      {overview.regions?.length > 0 && (
+        <TerminalPanel title="Regions" style={{ marginTop: "0.5rem" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: "0.4rem" }}>
+            {overview.regions.map((r) => (
+              <RegionTile key={r.symbol} tile={r} />
+            ))}
+          </div>
+        </TerminalPanel>
+      )}
+
+      {/* Sectors */}
+      {overview.sectors?.length > 0 && (
+        <TerminalPanel title="Sectors" style={{ marginTop: "0.5rem" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: "0.4rem" }}>
+            {overview.sectors.map((s) => (
+              <SectorTile key={s.symbol} tile={s} />
+            ))}
+          </div>
+        </TerminalPanel>
+      )}
 
       {/* Chart Modal */}
       {selectedAsset && chartData && (
