@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { MarketDataProvider } from "./context/MarketDataContext";
+import { MacroInputsProvider } from "./context/MacroInputsContext";
 import TerminalShell from "./components/Shell/TerminalShell";
 import DashboardPage from "./pages/DashboardPage";
 import CrossAssetPage from "./pages/CrossAssetPage";
@@ -10,6 +11,7 @@ import SignalsPage from "./pages/SignalsPage";
 export default function App() {
   return (
     <MarketDataProvider>
+      <MacroInputsProvider>
       <BrowserRouter>
         <Routes>
           <Route element={<TerminalShell />}>
@@ -21,6 +23,7 @@ export default function App() {
           </Route>
         </Routes>
       </BrowserRouter>
+      </MacroInputsProvider>
     </MarketDataProvider>
   );
 }
