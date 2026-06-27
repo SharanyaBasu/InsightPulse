@@ -3,7 +3,7 @@
     {
       "previewLimit": 500,
       "driver": "SQLite",
-      "name": "InsightPulse",
+      "name": "InsightPulse Local SQLite",
       "database": "backend/insightpulse.db"
     }
   ],
