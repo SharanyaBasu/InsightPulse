@@ -1,4 +1,9 @@
-import { MACRO_INPUT_FIELDS, useMacroInputs } from "../../context/MacroInputsContext";
+import { useState, useCallback } from "react";
+import {
+  MACRO_INPUT_FIELDS,
+  buildScenarioObject,
+  useMacroInputs,
+} from "../../context/MacroInputsContext";
 import TerminalPanel from "../Terminal/TerminalPanel";
 
 const inputStyle = {
@@ -25,12 +30,98 @@ const btnStyle = {
   letterSpacing: "0.06em",
 };
 
+const PARTIAL_NUMBER = /^-?\d*\.?\d*$/;
+
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function parseDraft(field, raw, fallback) {
+  const trimmed = raw.trim();
+  if (trimmed === "" || trimmed === "-" || trimmed === "." || trimmed === "-.") {
+    return 0;
+  }
+  const parsed = Number(trimmed);
+  if (Number.isNaN(parsed)) return fallback;
+  return clamp(parsed, field.min, field.max);
+}
+
 export default function MacroInputPanel() {
   const { inputs, setInput, saveInputs, resetInputs, dirty, savedAt } = useMacroInputs();
+  const [drafts, setDrafts] = useState({});
+  const [runAt, setRunAt] = useState(null);
+  const [runFlash, setRunFlash] = useState(false);
 
   const savedLabel = savedAt
     ? `Saved ${new Date(savedAt).toLocaleString()}`
     : "Not saved yet";
+
+  const getDraft = useCallback(
+    (field) => (drafts[field.key] !== undefined ? drafts[field.key] : String(inputs[field.key])),
+    [drafts, inputs]
+  );
+
+  const getEffectiveInputs = useCallback(() => {
+    const result = { ...inputs };
+    for (const field of MACRO_INPUT_FIELDS) {
+      if (drafts[field.key] !== undefined) {
+        result[field.key] = parseDraft(field, drafts[field.key], inputs[field.key]);
+      }
+    }
+    return result;
+  }, [drafts, inputs]);
+
+  const commitField = useCallback(
+    (field) => {
+      if (drafts[field.key] === undefined) return;
+      const value = parseDraft(field, drafts[field.key], inputs[field.key]);
+      setInput(field.key, value);
+      setDrafts((prev) => {
+        const next = { ...prev };
+        delete next[field.key];
+        return next;
+      });
+    },
+    [drafts, inputs, setInput]
+  );
+
+  const handleFocus = (field) => {
+    setDrafts((prev) => ({
+      ...prev,
+      [field.key]: inputs[field.key] === 0 ? "" : String(inputs[field.key]),
+    }));
+  };
+
+  const handleChange = (field, value) => {
+    if (value !== "" && !PARTIAL_NUMBER.test(value)) return;
+    setDrafts((prev) => ({ ...prev, [field.key]: value }));
+  };
+
+  const handleBlur = (field) => {
+    commitField(field);
+  };
+
+  const handleReset = () => {
+    resetInputs();
+    setDrafts({});
+    setRunAt(null);
+  };
+
+  const handleRunScenario = () => {
+    const effective = getEffectiveInputs();
+
+    for (const field of MACRO_INPUT_FIELDS) {
+      setInput(field.key, effective[field.key]);
+    }
+    setDrafts({});
+
+    const scenario = buildScenarioObject(effective);
+
+    console.log("Scenario:", scenario);
+    setRunAt(new Date());
+    setRunFlash(true);
+    setTimeout(() => setRunFlash(false), 600);
+  };
 
   return (
     <TerminalPanel
@@ -53,7 +144,7 @@ export default function MacroInputPanel() {
           </button>
           <button
             type="button"
-            onClick={resetInputs}
+            onClick={handleReset}
             style={{ ...btnStyle, color: "var(--text-mute)" }}
           >
             RESET
@@ -79,12 +170,12 @@ export default function MacroInputPanel() {
               <span style={{ color: "var(--text-mute)" }}>({field.unit})</span>
             </span>
             <input
-              type="number"
-              min={field.min}
-              max={field.max}
-              step={field.step}
-              value={inputs[field.key]}
-              onChange={(e) => setInput(field.key, e.target.value)}
+              type="text"
+              inputMode="decimal"
+              value={getDraft(field)}
+              onFocus={() => handleFocus(field)}
+              onChange={(e) => handleChange(field, e.target.value)}
+              onBlur={() => handleBlur(field)}
               style={inputStyle}
             />
             <span style={{ fontSize: "0.65rem", color: "var(--text-mute)" }}>
@@ -93,6 +184,32 @@ export default function MacroInputPanel() {
           </label>
         ))}
       </div>
+
+      <div style={{ marginTop: "0.75rem", display: "flex", alignItems: "center", gap: "0.75rem", flexWrap: "wrap" }}>
+        <button
+          type="button"
+          onClick={handleRunScenario}
+          style={{
+            ...btnStyle,
+            padding: "0.4rem 0.85rem",
+            fontSize: "0.72rem",
+            fontWeight: 700,
+            color: "#000",
+            background: runFlash ? "var(--cyan)" : "var(--green)",
+            borderColor: runFlash ? "var(--cyan)" : "var(--green)",
+            letterSpacing: "0.08em",
+            transition: "background 0.2s, border-color 0.2s",
+          }}
+        >
+          RUN SCENARIO
+        </button>
+        {runAt && (
+          <span style={{ fontSize: "0.72rem", color: "var(--green)", fontWeight: 600 }}>
+            Scenario logged at {runAt.toLocaleTimeString()}
+          </span>
+        )}
+      </div>
+
       <div style={{ marginTop: "0.6rem", fontSize: "0.65rem", color: dirty ? "var(--amber)" : "var(--text-mute)" }}>
         {dirty ? "Unsaved changes — click SAVE to keep these values after refresh." : savedLabel}
       </div>
