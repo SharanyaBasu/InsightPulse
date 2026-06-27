@@ -183,7 +183,7 @@ def compute_daily(skip_ingestion: bool = False):
         return {"error": str(e)}
 
 @app.get("/api/summary/daily")
-def summary_daily():
+def summary_daily(refresh_data: bool = False):
     try:
         db: Session = SessionLocal()
         try:
@@ -193,7 +193,7 @@ def summary_daily():
             if existing_summary:
                 return existing_summary.summary
 
-            market_state = _get_or_compute_today_market_state(db, run_ingestion=True)
+            market_state = _get_or_compute_today_market_state(db, run_ingestion=refresh_data)
             summary = generate_summary(market_state)
 
             db.add(MarketSummary(date=today, summary=summary))

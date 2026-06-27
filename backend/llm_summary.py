@@ -1,13 +1,8 @@
 import os
 from dotenv import load_dotenv
 import json
-import google.generativeai as genai
 
 load_dotenv()
-
-genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
-
-model = genai.GenerativeModel("gemini-2.5-flash")
 
 SUMMARY_SCHEMA = {
     "type": "object",
@@ -71,6 +66,23 @@ Guidelines:
 """
 
 
+def _get_model():
+    api_key = os.getenv("GEMINI_API_KEY")
+    if not api_key:
+        raise RuntimeError("GEMINI_API_KEY is missing from backend/.env")
+
+    try:
+        import google.generativeai as genai
+    except ModuleNotFoundError as exc:
+        raise RuntimeError(
+            "google-generativeai is not installed. Run `pip install -r requirements.txt` "
+            "from the backend virtual environment."
+        ) from exc
+
+    genai.configure(api_key=api_key)
+    return genai.GenerativeModel("gemini-2.5-flash")
+
+
 def generate_summary(market_state: dict) -> dict:
     prompt = f"""{SYSTEM_PROMPT}
 
@@ -78,6 +90,7 @@ def generate_summary(market_state: dict) -> dict:
     {json.dumps(market_state, indent=2)}
     """
 
+    model = _get_model()
     response = model.generate_content(
         prompt,
         generation_config={
