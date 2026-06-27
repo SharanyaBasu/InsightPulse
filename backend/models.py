@@ -1,3 +1,4 @@
+from sqlalchemy import Column, Integer, Float, Date, JSON, String
 from sqlalchemy import Column, Date, DateTime, Float, Integer, String, Text
 from db import Base
 
@@ -76,6 +77,19 @@ class MacroData(Base):
     ten_year_yield = Column(Float)    # DGS10 (%)
 
 
+class MarketState(Base):
+    __tablename__ = "market_state"
+
+    id = Column(Integer, primary_key=True, index=True)
+    date = Column(Date, unique=True, index=True)
+    data = Column(JSON)
+
+class MarketSummary(Base):
+    __tablename__ = "market_summary"
+
+    id = Column(Integer, primary_key=True, index=True)
+    date = Column(Date, unique=True, index=True)
+    summary = Column(JSON) 
 class EquityQuote(Base):
     __tablename__ = "equity_quotes"
 
