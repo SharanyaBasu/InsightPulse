@@ -5,15 +5,48 @@ import YieldPanel from "../components/Overview/YieldPanel";
 import MacroChips from "../components/Overview/MacroChips";
 import RegimeLabel from "../components/Overview/RegimeLabel";
 import CorrelationMonitor from "../components/Overview/CorrelationMonitor";
+import MacroInputPanel from "../components/Macro/MacroInputPanel";
 
 export default function MacroPage() {
-  const { overview, loading } = useMarketData();
+  const { overview, loading, error, refresh } = useMarketData();
 
   if (loading) return <TerminalLoader />;
-  if (!overview) return <div style={{ color: "var(--red)", padding: "1rem" }}>NO DATA</div>;
 
   return (
     <div>
+      <MacroInputPanel />
+
+      {!overview && (
+        <div style={{ color: "var(--red)", padding: "0 0 0.75rem 0", fontSize: "0.85rem" }}>
+          Market data unavailable — check that the backend is running on port 8000.
+          {error && (
+            <span style={{ display: "block", color: "var(--text-mute)", marginTop: "0.25rem" }}>
+              {error.message}
+            </span>
+          )}
+          <button
+            type="button"
+            onClick={refresh}
+            style={{
+              display: "block",
+              marginTop: "0.5rem",
+              background: "transparent",
+              color: "var(--cyan)",
+              border: "1px solid var(--panel-border)",
+              borderRadius: "var(--radius)",
+              fontFamily: "inherit",
+              fontSize: "0.72rem",
+              padding: "0.25rem 0.5rem",
+              cursor: "pointer",
+            }}
+          >
+            RETRY
+          </button>
+        </div>
+      )}
+
+      {!overview ? null : (
+      <>
       {/* Top: Yield + Macro side by side */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem", marginBottom: "0.5rem" }}>
         <TerminalPanel title="Yield Curve">
@@ -45,6 +78,8 @@ export default function MacroPage() {
             ))}
           </div>
         </>
+      )}
+      </>
       )}
     </div>
   );

@@ -1,101 +1,133 @@
 # backend/regime_service.py
-"""
-Regime Label Classification
-
-Uses correlations + volatility + dispersion to assign a structural
-regime label to the current macro environment.
-
-Data sources (all from the SQLite DB, originally fetched by data_fetcher.py):
-  - VIX              → market_data.vix          (source: yfinance ^VIX)
-  - Sector ETFs      → market_data.xl*          (source: yfinance sector ETFs)
-  - S&P 500          → market_data.sp500        (source: yfinance ^GSPC)
-  - 10Y Yield        → macro_data.ten_year_yield (source: FRED DGS10)
-  - Correlations     → computed by correlation_service.py from the above
-"""
 import numpy as np
 import pandas as pd
 
+SECTOR_COLS = [
+    "xlk", "xlf", "xly", "xlp", "xle", "xlv", "xli", "xlb", "xlre", "xlc",
+]
 
-# Sector columns used for dispersion calculation
-SECTOR_COLS = ["xlk", "xlf", "xly", "xlp", "xle", "xlv", "xli", "xlb", "xlre", "xlc"]
-
-# VIX thresholds
-VIX_HIGH = 25.0
-VIX_ELEVATED = 18.0
-
-# Dispersion thresholds (std dev of 21-day sector returns)
-DISPERSION_HIGH = 0.04
-DISPERSION_LOW = 0.015
+REGIME_DESCRIPTIONS = {
+    "Growth Regime": "Risk assets supported — volatility contained and cross-asset signals skew risk-on.",
+    "Inflationary Regime": "Rates and inflation-sensitive assets dominate — watch gold/yield and commodity correlations.",
+    "Liquidity Stress": "Volatility elevated and defensive correlations strengthening — risk assets under pressure.",
+    "Transitional / Unstable": "Mixed macro signals — correlations and dispersion do not point to a single stable regime.",
+}
 
 
-def _vix_level(market_df: pd.DataFrame) -> dict:
-    """
-    Current VIX level and 60-day percentile.
-    Data source: market_data.vix (fetched from yfinance ^VIX by data_fetcher.py)
-    """
+def _corr_label_by_key(correlations: list, key: str) -> str:
+    for item in correlations or []:
+        if item.get("key") == key:
+            return item.get("label") or "—"
+    return "—"
+
+
+def _vix_signals(market_df: pd.DataFrame) -> dict:
     if "vix" not in market_df.columns:
-        return {"value": None, "percentile": None, "level": "unknown"}
+        return {"value": None, "percentile": None, "level": "Unknown"}
 
-    vix = market_df["vix"].dropna()
-    if vix.empty:
-        return {"value": None, "percentile": None, "level": "unknown"}
+    series = market_df["vix"].dropna()
+    if series.empty:
+        return {"value": None, "percentile": None, "level": "Unknown"}
 
-    current = float(vix.iloc[-1])
-    window = vix.tail(252)  # 1-year lookback for percentile
-    percentile = float((window < current).mean() * 100)
+    value = float(series.iloc[-1])
+    window = series.tail(252) if len(series) >= 60 else series
+    percentile = float((window <= value).mean() * 100)
 
-    if current >= VIX_HIGH:
-        level = "high"
-    elif current >= VIX_ELEVATED:
-        level = "elevated"
+    if value >= 30 or percentile >= 85:
+        level = "Elevated"
+    elif value >= 20 or percentile >= 60:
+        level = "Moderate"
     else:
-        level = "low"
+        level = "Subdued"
 
-    return {"value": round(current, 2), "percentile": round(percentile, 1), "level": level}
+    return {
+        "value": round(value, 2),
+        "percentile": round(percentile, 1),
+        "level": level,
+    }
 
 
-def _sector_dispersion(market_df: pd.DataFrame) -> dict:
-    """
-    Cross-sector return dispersion (std dev of 21-day sector returns).
-    Data source: market_data sector ETF columns (fetched from yfinance by data_fetcher.py)
-    """
-    available = [c for c in SECTOR_COLS if c in market_df.columns]
-    if len(available) < 4:
-        return {"value": None, "level": "unknown"}
+def _dispersion_signals(market_df: pd.DataFrame) -> dict:
+    cols = [c for c in SECTOR_COLS if c in market_df.columns]
+    if len(cols) < 3:
+        return {"value": None, "level": "Unknown"}
 
-    sector_df = market_df[available].dropna()
-    if len(sector_df) < 22:
-        return {"value": None, "level": "unknown"}
+    returns_1m = []
+    for col in cols:
+        s = market_df[col].dropna()
+        if len(s) < 22:
+            continue
+        ret = (s.iloc[-1] / s.iloc[-22] - 1) * 100
+        if np.isfinite(ret):
+            returns_1m.append(ret)
 
-    # 21-day returns for each sector
-    returns_21d = sector_df.iloc[-1] / sector_df.iloc[-22] - 1
-    dispersion = float(returns_21d.std())
+    if len(returns_1m) < 3:
+        return {"value": None, "level": "Unknown"}
 
-    if dispersion >= DISPERSION_HIGH:
-        level = "high"
-    elif dispersion <= DISPERSION_LOW:
-        level = "low"
+    value = float(np.std(returns_1m))
+    if value >= 8:
+        level = "High"
+    elif value >= 4:
+        level = "Moderate"
     else:
-        level = "moderate"
+        level = "Low"
 
-    return {"value": round(dispersion * 100, 2), "level": level}
+    return {"value": round(value, 2), "level": level}
 
 
-def _extract_corr_signals(correlations: list) -> dict:
-    """
-    Pull out correlation labels from the already-computed correlation pairs.
-    Data source: correlation_service.build_correlations() output
-      - spx_vs_10y: market_data.sp500 + macro_data.ten_year_yield
-      - spx_vs_dxy: market_data.sp500 + market_data.usd_index
-      - gold_vs_10y: market_data.gold + macro_data.ten_year_yield
-    """
-    signals = {}
-    for pair in correlations:
-        signals[pair["key"]] = {
-            "correlation": pair.get("correlation"),
-            "label": pair.get("label"),
-        }
-    return signals
+def _pick_regime(vix: dict, dispersion: dict, corr_labels: dict) -> tuple[str, str]:
+    vix_val = vix.get("value")
+    vix_level = vix.get("level")
+    disp_level = dispersion.get("level")
+    spx_10y = corr_labels.get("spx_vs_10y", "Neutral")
+    spx_dxy = corr_labels.get("spx_vs_dxy", "Neutral")
+    gold_10y = corr_labels.get("gold_vs_10y", "Neutral")
+
+    stress_score = 0
+    growth_score = 0
+    inflation_score = 0
+
+    if vix_level == "Elevated" or (vix_val is not None and vix_val >= 28):
+        stress_score += 2
+    elif vix_level == "Moderate":
+        stress_score += 1
+
+    if spx_10y == "Negative":
+        stress_score += 1
+        growth_score -= 1
+    if spx_dxy == "Negative":
+        growth_score += 1
+    if spx_dxy == "Positive" and spx_10y != "Negative":
+        inflation_score += 1
+
+    if gold_10y == "Positive":
+        inflation_score += 2
+    elif gold_10y == "Negative" and spx_10y == "Positive":
+        growth_score += 1
+
+    if disp_level == "High":
+        stress_score += 1
+
+    scores = {
+        "Liquidity Stress": stress_score,
+        "Growth Regime": growth_score,
+        "Inflationary Regime": inflation_score,
+    }
+    best_regime = max(scores, key=scores.get)
+    best_score = scores[best_regime]
+    second_score = sorted(scores.values(), reverse=True)[1]
+
+    if best_score <= 0 or best_score == second_score:
+        regime = "Transitional / Unstable"
+        confidence = "Low"
+    elif best_score - second_score >= 2:
+        regime = best_regime
+        confidence = "High"
+    else:
+        regime = best_regime
+        confidence = "Medium"
+
+    return regime, confidence
 
 
 def classify_regime(
@@ -103,151 +135,26 @@ def classify_regime(
     macro_daily: pd.DataFrame,
     correlations: list,
 ) -> dict:
-    """
-    Classify the current macro regime.
+    """Classify macro regime from volatility, dispersion, and correlation structure."""
+    del macro_daily  # reserved for future macro-conditioned rules
 
-    Inputs and their data sources:
-      market_df   → loaded from SQLite market_data table
-                     (originally fetched from yfinance by data_fetcher.py)
-      macro_daily → loaded from SQLite macro_data table, resampled to business days
-                     (originally fetched from FRED API by data_fetcher.py)
-      correlations→ output of correlation_service.build_correlations()
-                     (computed from market_df + macro_daily)
+    vix = _vix_signals(market_df)
+    dispersion = _dispersion_signals(market_df)
+    corr_labels = {
+        "spx_vs_10y": _corr_label_by_key(correlations, "spx_vs_10y"),
+        "spx_vs_dxy": _corr_label_by_key(correlations, "spx_vs_dxy"),
+        "gold_vs_10y": _corr_label_by_key(correlations, "gold_vs_10y"),
+    }
 
-    Returns a dict with regime label, description, and supporting signals.
-    """
-    vix = _vix_level(market_df)
-    dispersion = _sector_dispersion(market_df)
-    corr_signals = _extract_corr_signals(correlations)
-
-    # --- Classification logic ---
-    spx_10y = corr_signals.get("spx_vs_10y", {})
-    spx_dxy = corr_signals.get("spx_vs_dxy", {})
-    gold_10y = corr_signals.get("gold_vs_10y", {})
-
-    spx_10y_label = spx_10y.get("label", "Neutral")
-    spx_dxy_label = spx_dxy.get("label", "Neutral")
-    gold_10y_label = gold_10y.get("label", "Neutral")
-    vix_level = vix["level"]
-    disp_level = dispersion["level"]
-
-    # Liquidity Stress: VIX spiking + correlations converging (everything sells off)
-    if vix_level == "high" and spx_10y_label == "Negative":
-        regime = "Liquidity Stress"
-        description = (
-            "Volatility is elevated and correlations indicate flight to safety. "
-            "Assets are moving in lockstep as risk is repriced across the board."
-        )
-
-    # Inflationary Regime: yields rising with equity pressure, gold bid
-    elif (spx_10y_label == "Negative" and gold_10y_label == "Positive"
-          and vix_level != "low"):
-        regime = "Inflationary Regime"
-        description = (
-            "Rising yields are pressuring equity valuations while gold is bid "
-            "alongside rates — a classic stagflation signal. Real assets may "
-            "outperform duration-sensitive growth."
-        )
-
-    # Growth Regime: equities and yields rising together, low vol, narrow dispersion
-    elif (spx_10y_label == "Positive" and vix_level == "low"
-          and disp_level != "high"):
-        regime = "Growth Regime"
-        description = (
-            "Equities and yields are rising together with contained volatility "
-            "and narrow sector dispersion. This is a supportive macro backdrop "
-            "for risk assets."
-        )
-
-    # Transitional / Unstable: mixed signals across indicators
-    else:
-        # Check for more specific transitional patterns
-        mixed_count = sum([
-            spx_10y_label == "Neutral",
-            spx_dxy_label == "Neutral",
-            gold_10y_label == "Neutral",
-        ])
-
-        if mixed_count >= 2 or (vix_level == "elevated" and disp_level == "high"):
-            regime = "Transitional / Unstable"
-            description = (
-                "Cross-asset correlations are sending mixed signals. Elevated "
-                "dispersion and unclear directional cues suggest the market is "
-                "between regimes — positioning may shift quickly."
-            )
-        elif spx_10y_label == "Positive" and vix_level == "elevated":
-            regime = "Growth Regime"
-            description = (
-                "Equities and yields are co-moving higher, though volatility "
-                "remains somewhat elevated. The growth backdrop is intact but "
-                "bears watching."
-            )
-        elif spx_10y_label == "Negative" and vix_level == "low":
-            regime = "Inflationary Regime"
-            description = (
-                "Yields and equities are diverging despite calm volatility. "
-                "Rate sensitivity is rising — watch for duration rotation."
-            )
-        else:
-            regime = "Transitional / Unstable"
-            description = (
-                "No dominant macro regime is clearly in control. Correlations, "
-                "volatility, and dispersion are not aligned — expect choppy "
-                "price action."
-            )
-
-    # Confidence: how many signals agree
-    signal_alignment = _compute_confidence(vix_level, disp_level, spx_10y_label, regime)
+    regime, confidence = _pick_regime(vix, dispersion, corr_labels)
 
     return {
         "regime": regime,
-        "description": description,
-        "confidence": signal_alignment,
+        "confidence": confidence,
+        "description": REGIME_DESCRIPTIONS.get(regime, ""),
         "signals": {
             "vix": vix,
             "dispersion": dispersion,
-            "correlations": {
-                "spx_vs_10y": spx_10y_label,
-                "spx_vs_dxy": spx_dxy_label,
-                "gold_vs_10y": gold_10y_label,
-            },
+            "correlations": corr_labels,
         },
     }
-
-
-def _compute_confidence(vix_level, disp_level, spx_10y_label, regime):
-    """How many signals align with the assigned regime (high / moderate / low)."""
-    score = 0
-
-    if regime == "Growth Regime":
-        if vix_level == "low":
-            score += 1
-        if disp_level in ("low", "moderate"):
-            score += 1
-        if spx_10y_label == "Positive":
-            score += 1
-
-    elif regime == "Inflationary Regime":
-        if vix_level != "low":
-            score += 1
-        if spx_10y_label == "Negative":
-            score += 1
-        score += 1  # gold signal already checked in classification
-
-    elif regime == "Liquidity Stress":
-        if vix_level == "high":
-            score += 1
-        if disp_level == "high":
-            score += 1
-        if spx_10y_label == "Negative":
-            score += 1
-
-    elif regime == "Transitional / Unstable":
-        # Low confidence by definition
-        return "Low"
-
-    if score >= 3:
-        return "High"
-    if score >= 2:
-        return "Moderate"
-    return "Low"
