@@ -11,8 +11,12 @@ import YieldPanel from "../components/Overview/YieldPanel";
 import CrossAssetPanel from "../components/Overview/CrossAssetPanel";
 import CorrelationMonitor from "../components/Overview/CorrelationMonitor";
 import RegimeLabel from "../components/Overview/RegimeLabel";
+import useScenario from "../hooks/useScenario";
+import ScenarioDeltaCards from "../components/Overview/ScenarioDeltaCards";
+import SectorHeatmap from "../components/Overview/SectorHeatmap";
 
 export default function OverviewPage() {
+  const { data: scenario } = useScenario();
   const { data, loading } = useOverview();
 
   if (loading) return <p style={{ padding: "2rem" }}>Loading...</p>;
@@ -174,6 +178,8 @@ export default function OverviewPage() {
           <SectorTile key={s.symbol} tile={s} />
         ))}
       </div>
+      {scenario && <ScenarioDeltaCards assets={scenario.assets} />}
+      {scenario && <SectorHeatmap sectors={scenario.sectors} />}
     </div>
   );
 }
