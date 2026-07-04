@@ -222,24 +222,25 @@ def _build_asset_class_snapshot(metrics: dict) -> list:
     snapshot = []
 
     for asset_class, assets in ASSET_CLASSES.items():
-        returns = []
-        evidence_ids = []
+        members = []
         for asset in assets:
             metric_id = f"{asset}_5d_return"
             value = _metric_value(metrics, metric_id)
             if value is None:
                 continue
-            returns.append(_display_value(metric_id, float(value)))
-            evidence_ids.append(metric_id)
+            members.append({
+                "asset": asset,
+                "metric": metric_id,
+                "return_5d_pct": _display_value(metric_id, float(value)),
+                "evidence_id": metric_id,
+            })
 
-        if not returns:
+        if not members:
             continue
 
-        return_5d_pct = round(sum(returns) / len(returns), 3)
         snapshot.append({
             "class": asset_class,
-            "return_5d_pct": return_5d_pct,
-            "evidence_ids": evidence_ids,
+            "members": members,
         })
 
     return snapshot
@@ -315,7 +316,8 @@ def _collect_evidence_ids(drivers, stress_flags, mood_5d, asset_class_snapshot) 
     for feature in mood_5d.get("top_features", []):
         ids.add(feature["name"])
     for row in asset_class_snapshot:
-        ids.update(row.get("evidence_ids", []))
+        for member in row.get("members", []):
+            ids.add(member["evidence_id"])
     return ids
 
 
