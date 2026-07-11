@@ -14,6 +14,8 @@ from overview_service import build_overview_snapshot
 from market_state_service import build_market_state
 from llm_summary import generate_summary
 from datetime import date
+from schemas.scenario import ScenarioRunRequest, ScenarioRunResponse
+from scenario_service import build_contract_stub_result
 
 app = FastAPI(
     title="InsightPulse Market API",
@@ -238,6 +240,11 @@ def debug_summary():
 
 @app.get("/api/scenario", tags=["Live"])
 def get_scenario():
+    """Live day-over-day market deltas for dashboard widgets.
+
+    Not used by Scenario Playground. Playground simulation uses
+    POST /api/scenario/run instead.
+    """
     db: Session = SessionLocal()
     rows = db.query(MarketData).order_by(MarketData.date.desc()).limit(2).all()
     db.close()
@@ -276,3 +283,19 @@ def get_scenario():
     ]
 
     return JSONResponse(content={"assets": assets, "sectors": sectors})
+
+
+@app.post(
+    "/api/scenario/run",
+    response_model=ScenarioRunResponse,
+    tags=["Scenario Playground"],
+    summary="Run Scenario Playground simulation",
+)
+def run_scenario(payload: ScenarioRunRequest) -> ScenarioRunResponse:
+    """Accept macro shocks and return a Scenario Playground result.
+
+    Request/response schemas are defined in `schemas/scenario.py`.
+    Current implementation returns a contract stub so the endpoint can be
+    tested independently (curl /docs) before deterministic models land.
+    """
+    return build_contract_stub_result(payload)

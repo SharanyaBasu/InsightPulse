@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useCallback, useEffect } from "react";
+import axios from "axios";
 
 const STORAGE_KEY = "insightpulse.macroInputs";
 
@@ -120,6 +121,10 @@ export function MacroInputsProvider({ children }) {
     }
   });
   const [dirty, setDirty] = useState(false);
+  const [scenarioResult, setScenarioResult] = useState(null);
+  const [lastRunAt, setLastRunAt] = useState(null);
+  const [runLoading, setRunLoading] = useState(false);
+  const [runError, setRunError] = useState(null);
 
   useEffect(() => {
     const onBeforeUnload = (e) => {
@@ -170,6 +175,9 @@ export function MacroInputsProvider({ children }) {
 
   const resetInputs = useCallback(() => {
     setInputs(DEFAULT_MACRO_INPUTS);
+    setScenarioResult(null);
+    setLastRunAt(null);
+    setRunError(null);
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(DEFAULT_MACRO_INPUTS));
       const stamp = new Date().toISOString();
@@ -181,15 +189,40 @@ export function MacroInputsProvider({ children }) {
     }
   }, []);
 
-  const runScenario = useCallback(() => {
-    const scenario = buildScenarioObject(inputs);
-    console.log("Scenario:", scenario);
-    return scenario;
+  const runScenario = useCallback(async (overrideInputs) => {
+    const source = overrideInputs || inputs;
+    const payload = buildScenarioObject(source);
+    setRunLoading(true);
+    setRunError(null);
+    try {
+      const res = await axios.post("/api/scenario/run", payload);
+      setScenarioResult(res.data);
+      setLastRunAt(new Date());
+      return res.data;
+    } catch (err) {
+      console.error("Failed to run scenario:", err);
+      setRunError(err.response?.data?.detail || err.message || "Scenario run failed");
+      throw err;
+    } finally {
+      setRunLoading(false);
+    }
   }, [inputs]);
 
   return (
     <MacroInputsContext.Provider
-      value={{ inputs, setInput, saveInputs, resetInputs, runScenario, dirty, savedAt }}
+      value={{
+        inputs,
+        setInput,
+        saveInputs,
+        resetInputs,
+        runScenario,
+        scenarioResult,
+        lastRunAt,
+        runLoading,
+        runError,
+        dirty,
+        savedAt,
+      }}
     >
       {children}
     </MacroInputsContext.Provider>

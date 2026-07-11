@@ -1,7 +1,6 @@
 import { useState, useCallback } from "react";
 import {
   MACRO_INPUT_FIELDS,
-  buildScenarioObject,
   useMacroInputs,
 } from "../../context/MacroInputsContext";
 import TerminalPanel from "../Terminal/TerminalPanel";
@@ -46,10 +45,20 @@ function parseDraft(field, raw, fallback) {
   return clamp(parsed, field.min, field.max);
 }
 
-export default function MacroInputPanel() {
-  const { inputs, setInput, saveInputs, resetInputs, dirty, savedAt } = useMacroInputs();
+export default function MacroInputPanel({ embedded = false }) {
+  const {
+    inputs,
+    setInput,
+    saveInputs,
+    resetInputs,
+    runScenario,
+    lastRunAt,
+    runLoading,
+    runError,
+    dirty,
+    savedAt,
+  } = useMacroInputs();
   const [drafts, setDrafts] = useState({});
-  const [runAt, setRunAt] = useState(null);
   const [runFlash, setRunFlash] = useState(false);
 
   const savedLabel = savedAt
@@ -104,10 +113,9 @@ export default function MacroInputPanel() {
   const handleReset = () => {
     resetInputs();
     setDrafts({});
-    setRunAt(null);
   };
 
-  const handleRunScenario = () => {
+  const handleRunScenario = async () => {
     const effective = getEffectiveInputs();
 
     for (const field of MACRO_INPUT_FIELDS) {
@@ -115,48 +123,21 @@ export default function MacroInputPanel() {
     }
     setDrafts({});
 
-    const scenario = buildScenarioObject(effective);
-
-    console.log("Scenario:", scenario);
-    setRunAt(new Date());
-    setRunFlash(true);
-    setTimeout(() => setRunFlash(false), 600);
+    try {
+      await runScenario(effective);
+      setRunFlash(true);
+      setTimeout(() => setRunFlash(false), 600);
+    } catch {
+      /* error surfaced via runError */
+    }
   };
 
-  return (
-    <TerminalPanel
-      title="Macro Scenario Inputs"
-      headerRight={
-        <div style={{ display: "flex", gap: "0.35rem", alignItems: "center" }}>
-          <button
-            type="button"
-            onClick={saveInputs}
-            disabled={!dirty}
-            style={{
-              ...btnStyle,
-              color: dirty ? "var(--green)" : "var(--text-mute)",
-              borderColor: dirty ? "var(--green)" : "var(--panel-border)",
-              fontWeight: dirty ? 700 : 500,
-              cursor: dirty ? "pointer" : "default",
-            }}
-          >
-            SAVE
-          </button>
-          <button
-            type="button"
-            onClick={handleReset}
-            style={{ ...btnStyle, color: "var(--text-mute)" }}
-          >
-            RESET
-          </button>
-        </div>
-      }
-      style={{ marginBottom: "0.5rem" }}
-    >
+  const body = (
+    <>
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))",
+          gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
           gap: "0.75rem 1rem",
         }}
       >
@@ -189,6 +170,7 @@ export default function MacroInputPanel() {
         <button
           type="button"
           onClick={handleRunScenario}
+          disabled={runLoading}
           style={{
             ...btnStyle,
             padding: "0.4rem 0.85rem",
@@ -199,13 +181,20 @@ export default function MacroInputPanel() {
             borderColor: runFlash ? "var(--cyan)" : "var(--green)",
             letterSpacing: "0.08em",
             transition: "background 0.2s, border-color 0.2s",
+            opacity: runLoading ? 0.7 : 1,
+            cursor: runLoading ? "wait" : "pointer",
           }}
         >
-          RUN SCENARIO
+          {runLoading ? "RUNNING…" : "RUN SCENARIO"}
         </button>
-        {runAt && (
+        {lastRunAt && !runError && (
           <span style={{ fontSize: "0.72rem", color: "var(--green)", fontWeight: 600 }}>
-            Scenario logged at {runAt.toLocaleTimeString()}
+            Scenario run at {lastRunAt.toLocaleTimeString()}
+          </span>
+        )}
+        {runError && (
+          <span style={{ fontSize: "0.72rem", color: "var(--red)", fontWeight: 600 }}>
+            {typeof runError === "string" ? runError : "Run failed"}
           </span>
         )}
       </div>
@@ -213,6 +202,71 @@ export default function MacroInputPanel() {
       <div style={{ marginTop: "0.6rem", fontSize: "0.65rem", color: dirty ? "var(--amber)" : "var(--text-mute)" }}>
         {dirty ? "Unsaved changes — click SAVE to keep these values after refresh." : savedLabel}
       </div>
+    </>
+  );
+
+  if (embedded) {
+    return (
+      <div>
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.35rem", marginBottom: "0.6rem" }}>
+          <button
+            type="button"
+            onClick={saveInputs}
+            disabled={!dirty}
+            style={{
+              ...btnStyle,
+              color: dirty ? "var(--green)" : "var(--text-mute)",
+              borderColor: dirty ? "var(--green)" : "var(--panel-border)",
+              fontWeight: dirty ? 700 : 500,
+              cursor: dirty ? "pointer" : "default",
+            }}
+          >
+            SAVE
+          </button>
+          <button
+            type="button"
+            onClick={handleReset}
+            style={{ ...btnStyle, color: "var(--text-mute)" }}
+          >
+            RESET
+          </button>
+        </div>
+        {body}
+      </div>
+    );
+  }
+
+  return (
+    <TerminalPanel
+      title="Macro Scenario Inputs"
+      headerRight={
+        <div style={{ display: "flex", gap: "0.35rem", alignItems: "center" }}>
+          <button
+            type="button"
+            onClick={saveInputs}
+            disabled={!dirty}
+            style={{
+              ...btnStyle,
+              color: dirty ? "var(--green)" : "var(--text-mute)",
+              borderColor: dirty ? "var(--green)" : "var(--panel-border)",
+              fontWeight: dirty ? 700 : 500,
+              cursor: dirty ? "pointer" : "default",
+            }}
+          >
+            SAVE
+          </button>
+          <button
+            type="button"
+            onClick={handleReset}
+            style={{ ...btnStyle, color: "var(--text-mute)" }}
+          >
+            RESET
+          </button>
+        </div>
+      }
+      style={{ marginBottom: "0.5rem" }}
+    >
+      {body}
     </TerminalPanel>
   );
 }
