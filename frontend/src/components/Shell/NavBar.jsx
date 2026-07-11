@@ -7,6 +7,7 @@ const TABS = [
   { key: "3", label: "MACRO", to: "/macro" },
   { key: "4", label: "SECTORS", to: "/sectors" },
   { key: "5", label: "SIGNALS", to: "/signals" },
+  { key: "6", label: "SCENARIO", to: "/scenario" },
 ];
 
 export default function NavBar({ onShowHelp }) {

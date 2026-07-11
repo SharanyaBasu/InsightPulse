@@ -26,7 +26,7 @@ export default function KeyboardHelp({ onClose }) {
           KEYBOARD SHORTCUTS
         </div>
         {[
-          ["1-5", "Navigate pages"],
+          ["1-6", "Navigate pages"],
           ["r", "Refresh data"],
           ["?", "Toggle this help"],
           ["Esc", "Close overlay"],
