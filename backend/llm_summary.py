@@ -80,7 +80,8 @@ def _get_model():
         ) from exc
 
     genai.configure(api_key=api_key)
-    return genai.GenerativeModel("gemini-2.5-flash")
+    model_name = os.getenv("GEMINI_MODEL", "gemini-3.5-flash")
+    return genai.GenerativeModel(model_name)
 
 
 def generate_summary(market_state: dict) -> dict:
