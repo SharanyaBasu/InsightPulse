@@ -13,6 +13,12 @@ function labelColor(label) {
   return "var(--text-soft)";
 }
 
+// Color the pair title green/red by the sign of its correlation
+function pairColor(corr) {
+  if (corr == null) return "var(--text-mute)";
+  return corr >= 0 ? "var(--green)" : "var(--red)";
+}
+
 function GaugeBar({ corr, label }) {
   if (corr == null) return null;
   const color = labelColor(label);
@@ -31,11 +37,11 @@ function GaugeBar({ corr, label }) {
 function CorrelationCard({ pair }) {
   return (
     <div style={{ background: "var(--panel)", border: "1px solid var(--panel-border)", borderRadius: "var(--radius)", padding: "0.6rem 0.8rem" }}>
-      <div style={{ fontSize: "0.65rem", color: "var(--text-mute)", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: "0.3rem" }}>
+      <div style={{ fontSize: "0.85rem", fontWeight: 700, color: pairColor(pair.correlation), letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: "0.3rem" }}>
         {pair.pair}
       </div>
 
-      <div style={{ fontSize: "1.4rem", fontWeight: 700, color: corrColor(pair.correlation), lineHeight: 1.1 }}>
+      <div style={{ fontSize: "2rem", fontWeight: 700, color: corrColor(pair.correlation), lineHeight: 1.1 }}>
         {pair.correlation != null ? pair.correlation.toFixed(2) : "—"}
       </div>
 
