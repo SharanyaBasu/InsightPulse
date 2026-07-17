@@ -217,13 +217,21 @@ export default function MarketSummary({ summary, loading, error, onRetry }) {
   const validationLabel =
     validationStatus === "verified"
       ? "VERIFIED"
-      : validationStatus === "fallback"
-        ? "DATA FALLBACK"
-        : null;
+      : validationStatus === "unverified"
+        ? "MAY BE INACCURATE"
+        : validationStatus === "fallback"
+          ? "DATA FALLBACK"
+          : null;
   const validationColor =
     validationStatus === "verified"
       ? "var(--green)"
       : "var(--amber)";
+  const validationTitle =
+    validationStatus === "fallback"
+      ? "LLM summary failed validation; showing structured data fallback."
+      : validationStatus === "unverified"
+        ? "Summary may not be accurate given current market data."
+        : "LLM summary passed validation.";
 
   return (
     <TerminalPanel
@@ -244,11 +252,7 @@ export default function MarketSummary({ summary, loading, error, onRetry }) {
           )}
           {validationLabel && (
             <span
-              title={
-                validationStatus === "fallback"
-                  ? "LLM summary failed validation; showing structured data fallback."
-                  : "LLM summary passed validation."
-              }
+              title={validationTitle}
               style={{
                 fontSize: "0.65rem",
                 color: validationColor,
@@ -298,6 +302,19 @@ export default function MarketSummary({ summary, loading, error, onRetry }) {
               {summary.headline}
             </div>
           </div>
+
+          {validationStatus === "unverified" && (
+            <p
+              style={{
+                margin: "0 0 0.5rem 0",
+                color: "var(--amber)",
+                fontSize: "0.72rem",
+                lineHeight: 1.45,
+              }}
+            >
+              Summary may not be accurate given current market data.
+            </p>
+          )}
 
           <BulletSection
             title="Regime"
