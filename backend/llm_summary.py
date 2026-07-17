@@ -95,6 +95,8 @@ Guidelines:
 
 
 def _get_model():
+    """Create the configured Gemini model."""
+
     api_key = os.getenv("GEMINI_API_KEY")
     if not api_key:
         raise RuntimeError("GEMINI_API_KEY is missing from backend/.env")
@@ -116,6 +118,16 @@ def generate_summary(
     *,
     validation_feedback: list[str] | None = None,
 ) -> dict:
+    """Generate a cited market summary from the market state.
+
+    Args:
+        market_state: Structured market data provided to the model.
+        validation_feedback: Errors from a previous attempt, if any.
+
+    Returns:
+        The parsed summary with its date and regime label.
+    """
+
     feedback_block = ""
     if validation_feedback:
         feedback_lines = "\n".join(f"- {error}" for error in validation_feedback)
@@ -152,6 +164,16 @@ def generate_summary_with_guardrail(
     market_state: dict,
     max_retries: int = 1,
 ) -> dict:
+    """Generate and validate a summary, then fall back if needed.
+
+    Args:
+        market_state: Structured market data used for generation and validation.
+        max_retries: Number of retries after the first failed attempt.
+
+    Returns:
+        A verified LLM summary or a deterministic fallback summary.
+    """
+
     attempts = max_retries + 1
     last_errors: list[str] = []
 

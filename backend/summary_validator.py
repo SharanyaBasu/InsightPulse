@@ -11,6 +11,8 @@ NUMERIC_TOLERANCE = 0.25
 
 @dataclass
 class ValidationResult:
+    """Store the result of summary validation."""
+
     passed: bool
     errors: list[str] = field(default_factory=list)
 
@@ -40,6 +42,8 @@ def normalize_bullet(item) -> dict | None:
 
 
 def _normalize_bullet_list(items) -> list[dict]:
+    """Normalize a list of summary bullets."""
+
     if not isinstance(items, list):
         return []
     bullets = []
@@ -62,6 +66,8 @@ def _normalize_cited_value(item) -> list[dict]:
 
 
 def _active_stress_flag_evidence_ids(market_state: dict) -> set[str]:
+    """Return evidence IDs for active stress flags."""
+
     ids: set[str] = set()
     for flag in market_state.get("stress_flags") or []:
         if not flag.get("active", True):
@@ -73,6 +79,8 @@ def _active_stress_flag_evidence_ids(market_state: dict) -> set[str]:
 
 
 def _active_stress_flag_names(market_state: dict) -> set[str]:
+    """Return names of active stress flags."""
+
     names: set[str] = set()
     for flag in market_state.get("stress_flags") or []:
         if not flag.get("active", True):
@@ -84,6 +92,8 @@ def _active_stress_flag_names(market_state: dict) -> set[str]:
 
 
 def _extract_numbers(text: str) -> list[float]:
+    """Extract unique percentages and decimal values from text."""
+
     numbers: list[float] = []
     seen: set[float] = set()
 
@@ -107,6 +117,8 @@ def _number_matches_cited_evidence(
     evidence_ids: list[str],
     evidence: dict,
 ) -> bool:
+    """Check whether a number matches any cited evidence value."""
+
     for eid in evidence_ids:
         row = evidence.get(eid)
         if not row:
@@ -128,6 +140,16 @@ def _validate_cited_bullets(
     *,
     allowed_evidence_ids: set[str] | None = None,
 ) -> None:
+    """Validate citations and numeric claims in summary bullets.
+
+    Args:
+        field_name: Summary field being validated.
+        bullets: Normalized bullets to validate.
+        evidence: Evidence records keyed by metric ID.
+        errors: List that receives validation errors.
+        allowed_evidence_ids: Optional set of evidence IDs allowed for the field.
+    """
+
     for index, bullet in enumerate(bullets):
         prefix = f"{field_name}[{index}]"
 
@@ -159,6 +181,8 @@ def _validate_legacy_risk_bullets(
     allowed_names: set[str],
     errors: list[str],
 ) -> None:
+    """Check that legacy risk bullets reference active stress flags."""
+
     for index, bullet in enumerate(bullets):
         if not bullet.get("legacy"):
             continue
@@ -170,6 +194,16 @@ def _validate_legacy_risk_bullets(
 
 
 def validate_summary(market_state: dict, summary: dict) -> ValidationResult:
+    """Validate a generated summary against the market state.
+
+    Args:
+        market_state: Structured market data used as the source of truth.
+        summary: Generated summary to validate.
+
+    Returns:
+        The validation result with any errors found.
+    """
+
     errors: list[str] = []
 
     if not isinstance(summary, dict):
@@ -239,6 +273,8 @@ def validate_summary(market_state: dict, summary: dict) -> ValidationResult:
 
 
 def _format_driver_clause(driver: dict, evidence: dict) -> tuple[str, str | None]:
+    """Format a market driver and return its evidence ID."""
+
     name = driver.get("name", "unknown")
     eid = driver.get("evidence_id")
     row = evidence.get(eid) if isinstance(eid, str) else None
@@ -257,6 +293,8 @@ def _format_driver_clause(driver: dict, evidence: dict) -> tuple[str, str | None
 
 
 def _format_asset_class_bullet(row: dict) -> list[str]:
+    """Format asset class members as summary bullets."""
+
     asset_class = row.get("class", "unknown")
     bullets = []
     for member in row.get("members", []):
@@ -268,6 +306,8 @@ def _format_asset_class_bullet(row: dict) -> list[str]:
 
 
 def _format_stress_flag_bullet(flag: dict) -> str:
+    """Format an active stress flag as a summary bullet."""
+
     name = flag.get("name", "unknown")
     severity = flag.get("severity")
     if severity:
@@ -276,6 +316,8 @@ def _format_stress_flag_bullet(flag: dict) -> str:
 
 
 def _format_mood_driver_bullet(feature: dict) -> str:
+    """Format a mood feature as a summary bullet."""
+
     name = feature.get("name", "unknown")
     contribution = feature.get("contribution")
     if contribution is None:
@@ -284,6 +326,15 @@ def _format_mood_driver_bullet(feature: dict) -> str:
 
 
 def _build_regime_summary(market_state: dict) -> dict | str:
+    """Build a regime summary from structured market data.
+
+    Args:
+        market_state: Structured market data used to build the summary.
+
+    Returns:
+        A cited regime summary, or plain text when no drivers are available.
+    """
+
     regime_label = (market_state.get("regime") or {}).get("label", "unknown")
     drivers = market_state.get("drivers") or []
     evidence = market_state.get("evidence") or {}
@@ -304,6 +355,15 @@ def _build_regime_summary(market_state: dict) -> dict | str:
 
 
 def build_fallback_summary(market_state: dict) -> dict:
+    """Build a deterministic summary when LLM validation fails.
+
+    Args:
+        market_state: Structured market data used to build the summary.
+
+    Returns:
+        A summary generated directly from the market state.
+    """
+
     regime_label = (market_state.get("regime") or {}).get("label", "unknown")
     as_of = market_state.get("as_of", "")
     mood = market_state.get("mood_5d") or {}

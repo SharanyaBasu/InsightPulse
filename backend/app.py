@@ -147,6 +147,16 @@ def _save_market_state(db: Session, market_state: dict) -> None:
 
 
 def _get_or_compute_today_market_state(db: Session, run_ingestion: bool) -> dict:
+    """Load today's market state or rebuild it after ingestion.
+
+    Args:
+        db: Active database session.
+        run_ingestion: Whether to refresh source data before building the state.
+
+    Returns:
+        Today's stored or newly built market state.
+    """
+
     today = date.today()
     existing = db.query(MarketState).filter(MarketState.date == today).first()
     if existing and not run_ingestion:

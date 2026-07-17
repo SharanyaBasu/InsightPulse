@@ -219,6 +219,15 @@ def _build_stress_flags(metrics: dict) -> list:
 
 
 def _build_asset_class_snapshot(metrics: dict) -> list:
+    """Build per-asset return snapshots grouped by asset class.
+
+    Args:
+        metrics: Calculated metrics keyed by metric ID.
+
+    Returns:
+        Asset classes with their available member returns and evidence IDs.
+    """
+
     snapshot = []
 
     for asset_class, assets in ASSET_CLASSES.items():
@@ -308,6 +317,18 @@ def _build_mood_5d(metrics: dict) -> dict:
 
 
 def _collect_evidence_ids(drivers, stress_flags, mood_5d, asset_class_snapshot) -> set[str]:
+    """Collect metric IDs needed to support summary claims.
+
+    Args:
+        drivers: Market drivers included in the state.
+        stress_flags: Active market stress flags.
+        mood_5d: Five-day market mood data.
+        asset_class_snapshot: Per-asset returns grouped by asset class.
+
+    Returns:
+        Metric IDs that should be included in the evidence map.
+    """
+
     ids = set(REGIME_METRICS)
     for driver in drivers:
         ids.add(driver["evidence_id"])
