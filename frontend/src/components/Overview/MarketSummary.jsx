@@ -18,19 +18,23 @@ function BulletSection({ title, items, accent = "var(--cyan)" }) {
         {title}
       </div>
       <ul style={{ margin: 0, paddingLeft: "1.1rem", listStyle: "disc" }}>
-        {items.map((item, index) => (
-          <li
-            key={`${title}-${index}`}
-            style={{
-              color: "var(--text-soft)",
-              fontSize: "0.78rem",
-              lineHeight: 1.55,
-              marginBottom: "0.25rem",
-            }}
-          >
-            {item}
-          </li>
-        ))}
+        {items.map((item, index) => {
+          const text = typeof item === "string" ? item : item?.text;
+          if (!text) return null;
+          return (
+            <li
+              key={`${title}-${index}`}
+              style={{
+                color: "var(--text-soft)",
+                fontSize: "0.78rem",
+                lineHeight: 1.55,
+                marginBottom: "0.25rem",
+              }}
+            >
+              {text}
+            </li>
+          );
+        })}
       </ul>
     </div>
   );
