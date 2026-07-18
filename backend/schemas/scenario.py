@@ -24,56 +24,56 @@ class ScenarioRunRequest(BaseModel):
     """Macro shocks submitted by the Scenario Playground input panel."""
 
     fed_funds_change_bps: float = Field(
-        ...,
+        0,
         ge=-100,
         le=100,
         description="Fed funds rate change in basis points.",
         examples=[-50],
     )
     cpi_surprise_pct: float = Field(
-        ...,
+        0,
         ge=-2,
         le=2,
         description="CPI / inflation surprise in percentage points.",
         examples=[-0.2],
     )
     oil_change_pct: float = Field(
-        ...,
+        0,
         ge=-30,
         le=30,
         description="Oil price percent change.",
         examples=[5],
     )
     gdp_surprise_pct: float = Field(
-        ...,
+        0,
         ge=-5,
         le=5,
         description="GDP growth surprise in percentage points.",
         examples=[-0.5],
     )
     unemployment_change_pct: float = Field(
-        ...,
+        0,
         ge=-2,
         le=2,
         description="Unemployment rate change in percentage points.",
         examples=[0.2],
     )
     pmi_change: float = Field(
-        ...,
+        0,
         ge=-10,
         le=10,
         description="PMI change in index points.",
         examples=[-3],
     )
     dxy_change_pct: float = Field(
-        ...,
+        0,
         ge=-10,
         le=10,
         description="DXY / USD percent change.",
         examples=[1],
     )
     vix_change_pct: float = Field(
-        ...,
+        0,
         ge=-50,
         le=100,
         description="VIX percent change.",

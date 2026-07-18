@@ -15,7 +15,7 @@ from market_state_service import build_market_state
 from llm_summary import generate_summary
 from datetime import date
 from schemas.scenario import ScenarioRunRequest, ScenarioRunResponse
-from scenario_service import build_contract_stub_result
+from scenario_service import run_scenario as run_scenario_engine
 
 app = FastAPI(
     title="InsightPulse Market API",
@@ -295,7 +295,7 @@ def run_scenario(payload: ScenarioRunRequest) -> ScenarioRunResponse:
     """Accept macro shocks and return a Scenario Playground result.
 
     Request/response schemas are defined in `schemas/scenario.py`.
-    Current implementation returns a contract stub so the endpoint can be
-    tested independently (curl /docs) before deterministic models land.
+    Projection logic lives in `scenario_service.run_scenario`.
     """
-    return build_contract_stub_result(payload)
+    result = run_scenario_engine(payload.model_dump())
+    return ScenarioRunResponse(**result)
