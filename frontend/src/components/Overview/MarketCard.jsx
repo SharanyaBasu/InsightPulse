@@ -11,35 +11,36 @@ export default function MarketCard({ card, onClick }) {
         background: "var(--panel)",
         border: "1px solid var(--panel-border)",
         borderRadius: "var(--radius)",
-        padding: "0.6rem 0.8rem",
+        padding: "1rem 1.2rem",
         cursor: onClick ? "pointer" : "default",
         transition: "border-color 0.15s",
+        minWidth: "160px",
       }}
       onMouseEnter={(e) => onClick && (e.currentTarget.style.borderColor = "var(--text-mute)")}
       onMouseLeave={(e) => onClick && (e.currentTarget.style.borderColor = "var(--panel-border)")}
     >
       {/* Symbol */}
-      <div style={{ fontSize: "0.72rem", color: "var(--text-mute)", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: "0.15rem" }}>
+      <div style={{ fontSize: "0.8rem", color: "var(--text-mute)", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: "0.3rem" }}>
         {card.name}
       </div>
 
       {/* Price */}
-      <div style={{ fontSize: "1.3rem", fontWeight: 700, color: "var(--text)", marginBottom: "0.2rem" }}>
+      <div style={{ fontSize: "1.6rem", fontWeight: 700, color: "var(--text)", marginBottom: "0.35rem" }}>
         {Number(card.price).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
       </div>
 
       {/* Change + Sparkline row */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "0.5rem" }}>
-        <span style={{ fontSize: "0.88rem", fontWeight: 600, color: changeColor }}>
+        <span style={{ fontSize: "1rem", fontWeight: 600, color: changeColor }}>
           {isUp ? "+" : ""}{change.toFixed(2)}%
         </span>
-        <svg width="70" height="28" viewBox="0 0 70 28" preserveAspectRatio="none" style={{ flexShrink: 0 }}>
+        <svg width="80" height="36" viewBox="0 0 80 36" preserveAspectRatio="none" style={{ flexShrink: 0 }}>
           <polyline
             fill="none"
             stroke={changeColor}
             strokeWidth="1.5"
             points={card.sparkline
-              .map((v, i) => `${(i / card.sparkline.length) * 70},${28 - v * 22}`)
+              .map((v, i) => `${(i / card.sparkline.length) * 80},${36 - v * 28}`)
               .join(" ")}
           />
         </svg>
@@ -47,7 +48,7 @@ export default function MarketCard({ card, onClick }) {
 
       {/* Extra changes if available */}
       {(card.change_1w != null || card.change_1m != null) && (
-        <div style={{ display: "flex", gap: "0.8rem", marginTop: "0.3rem", fontSize: "0.72rem", color: "var(--text-mute)" }}>
+        <div style={{ display: "flex", gap: "0.8rem", marginTop: "0.4rem", fontSize: "0.78rem", color: "var(--text-mute)" }}>
           {card.change_1w != null && (
             <span>
               1W: <span style={{ color: card.change_1w >= 0 ? "var(--green)" : "var(--red)", fontWeight: 600 }}>
