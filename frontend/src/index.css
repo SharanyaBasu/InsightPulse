@@ -9,10 +9,10 @@
   --panel-hover: #161616;
   --panel-border: #1e1e1e;
 
-  /* Text hierarchy */
+  /* Text hierarchy — greys meet WCAG AA (4.5:1) on --bg, --panel, --panel-hover */
   --text: #c8c8c8;
-  --text-soft: #787878;
-  --text-mute: #484848;
+  --text-soft: #a0a0a0;
+  --text-mute: #8a8a8a;
 
   /* Accent colors */
   --green: #00ff41;
@@ -26,7 +26,7 @@
 
   /* Typography */
   font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
-  font-size: 14px;
+  font-size: 16px;
   line-height: 1.45;
   color: var(--text);
   background: var(--bg);
