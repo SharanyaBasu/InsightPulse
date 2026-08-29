@@ -29,3 +29,13 @@ Thumbs.db
 # DB
 *.db
 *.sqlite
+
+# Scenario Playground local raw, interim, processed, and partial download files
+data/scenario_playground/raw/
+data/scenario_playground/interim/
+data/scenario_playground/processed/
+data/scenario_playground/**/*.part
+data/scenario_playground/**/*.tmp
+
+# Scenario Playground fitted research bundles and model binaries
+scenario_modeling/artifacts/
