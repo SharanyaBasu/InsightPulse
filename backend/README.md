@@ -6,10 +6,22 @@ Basic setup for running the InsightPulse FastAPI backend.
 
 ```bash
 cd backend
-python -m venv .venv
+python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 ```
+
+`requirements.txt` installs the repo-root `scenario_modeling` package in editable mode
+(`-e ..`) so FastAPI can `import scenario_modeling` when launched from `backend/`.
+No `PYTHONPATH` or `sys.path` edits are required.
+
+For the Ridge model binary, place the full GitHub release folder at:
+
+```text
+scenario_modeling/artifacts/scenario_playground_ridge/v1.0.0/
+```
+
+See `scenario_modeling/MODEL_BUNDLE_HANDOFF.md` for bundle setup and smoke tests.
 
 ## Environment
 

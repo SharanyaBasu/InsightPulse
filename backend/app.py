@@ -295,7 +295,7 @@ def run_scenario(payload: ScenarioRunRequest) -> ScenarioRunResponse:
     """Accept macro shocks and return a Scenario Playground result.
 
     Request/response schemas are defined in `schemas/scenario.py`.
-    Projection logic lives in `scenario_service.run_scenario`.
+    Projection logic lives in `scenario_service.run_scenario` (Ridge v1 by default).
     """
     result = run_scenario_engine(payload.model_dump())
     return ScenarioRunResponse(**result)

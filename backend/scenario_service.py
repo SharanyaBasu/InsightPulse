@@ -1,16 +1,16 @@
 """
 Scenario Playground simulation service.
 
-v1 uses a deterministic rule engine. The public entrypoint is run_scenario().
-To add a model-backed engine later:
-1. Implement ScenarioEngine.predict(inputs) -> dict
-2. Load weights/artifacts inside that class
-3. Set DEFAULT_ENGINE or pass engine= into run_scenario
+The public entrypoint is run_scenario(). Default engine is Ridge v1
+(``RidgeScenarioEngine``). DeterministicRuleEngine remains available for
+tests and local fallback via ``engine=``.
 """
 
 from __future__ import annotations
 
 from typing import Protocol
+
+from ridge_scenario_engine import RidgeScenarioEngine
 
 # ---------------------------------------------------------------------------
 # Contract keys (must match schemas.scenario.ScenarioRunResponse)
@@ -380,7 +380,7 @@ class DeterministicRuleEngine:
         )
 
 
-DEFAULT_ENGINE: ScenarioEngine = DeterministicRuleEngine()
+DEFAULT_ENGINE: ScenarioEngine = RidgeScenarioEngine()
 
 
 def run_scenario(
@@ -391,7 +391,7 @@ def run_scenario(
 
     Args:
         inputs: Macro shock dict matching ScenarioRunRequest fields.
-        engine: Optional engine override. Defaults to DeterministicRuleEngine.
+        engine: Optional engine override. Defaults to RidgeScenarioEngine.
 
     Returns:
         ScenarioRunResponse-shaped result dict.

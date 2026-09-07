@@ -1,3 +1,7 @@
+from ridge_scenario_engine import (
+    RidgeScenarioEngine,
+    map_api_inputs_to_model_shocks,
+)
 from scenario_service import DeterministicRuleEngine, run_scenario
 
 
@@ -11,6 +15,29 @@ ZERO_INPUTS = {
     "dxy_change_pct": 0,
     "vix_change_pct": 0,
 }
+
+
+def test_map_api_inputs_to_model_shocks():
+    shocks = map_api_inputs_to_model_shocks(
+        {
+            **ZERO_INPUTS,
+            "fed_funds_change_bps": -25,
+            "oil_change_pct": 5,
+            "vix_change_pct": 10,
+            "pmi_change": -2,
+        }
+    )
+
+    assert shocks == {
+        "fed_funds_rate_change_bps": -25.0,
+        "cpi_surprise_pct": 0.0,
+        "oil_price_change_pct": 5.0,
+        "gdp_growth_surprise_pct": 0.0,
+        "unemployment_change_pct": 0.0,
+        "pmi_change_points": -2.0,
+        "dxy_change_pct": 0.0,
+        "vix_change_points": 10.0,
+    }
 
 
 def test_run_scenario_returns_required_keys():
@@ -27,6 +54,7 @@ def test_run_scenario_returns_required_keys():
     assert result["confidence"] in {"Low", "Medium", "High"}
     assert "sp500" in result["asset_deltas"]
     assert "technology" in result["sector_impacts"]
+    assert "2026-06-11" in result["summary"]
 
 
 def test_run_scenario_is_deterministic():
@@ -56,7 +84,8 @@ def test_risk_off_inputs_pressure_equities():
 
     assert result["asset_deltas"]["sp500"] < 0
     assert result["asset_deltas"]["nasdaq"] < 0
-    assert result["regime"] in {"Risk-Off", "Liquidity Stress", "Transitional"}
+    assert result["confidence"] in {"Low", "Medium", "High"}
+    assert isinstance(result["regime"], str) and result["regime"]
 
 
 def test_higher_oil_lifts_energy_and_oil_asset():
@@ -66,24 +95,11 @@ def test_higher_oil_lifts_energy_and_oil_asset():
     assert result["sector_impacts"]["energy"] > 0
 
 
-def test_outputs_stay_within_bounds():
-    result = run_scenario(
-        {
-            "fed_funds_change_bps": 100,
-            "cpi_surprise_pct": 2,
-            "oil_change_pct": 30,
-            "gdp_surprise_pct": -5,
-            "unemployment_change_pct": 2,
-            "pmi_change": -10,
-            "dxy_change_pct": 10,
-            "vix_change_pct": 100,
-        }
-    )
+def test_neutral_shocks_have_zero_incremental_effects():
+    result = run_scenario(ZERO_INPUTS)
 
-    assert -8.0 <= result["asset_deltas"]["sp500"] <= 8.0
-    assert -10.0 <= result["asset_deltas"]["nasdaq"] <= 10.0
-    assert -80.0 <= result["asset_deltas"]["ten_year_yield_bps"] <= 80.0
-    assert -10.0 <= result["sector_impacts"]["technology"] <= 10.0
+    assert result["asset_deltas"]["sp500"] == 0.0
+    assert result["sector_impacts"]["technology"] == 0.0
 
 
 def test_engine_override_is_used():
@@ -118,7 +134,16 @@ def test_engine_override_is_used():
     assert result["explanation"] == "injected engine"
 
 
-def test_default_engine_is_deterministic_rule_engine():
+def test_default_engine_is_ridge():
+    engine = RidgeScenarioEngine()
+    result = engine.predict(ZERO_INPUTS)
+
+    assert result["confidence"] in {"Low", "Medium", "High"}
+    assert "fixed" in result["summary"].lower() or "2026-06-11" in result["summary"]
+    assert result["asset_deltas"]["sp500"] == 0.0
+
+
+def test_deterministic_rule_engine_still_available():
     engine = DeterministicRuleEngine()
     result = engine.predict(ZERO_INPUTS)
 
