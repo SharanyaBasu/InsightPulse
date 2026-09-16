@@ -20,7 +20,7 @@ export default function MarketCard({ card, onClick }) {
       onMouseLeave={(e) => onClick && (e.currentTarget.style.borderColor = "var(--panel-border)")}
     >
       {/* Symbol */}
-      <div style={{ fontSize: "0.8rem", color: "var(--text-mute)", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: "0.3rem" }}>
+      <div style={{ fontSize: "0.8rem", color: "var(--text-soft)", fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: "0.3rem" }}>
         {card.name}
       </div>
 
@@ -48,7 +48,7 @@ export default function MarketCard({ card, onClick }) {
 
       {/* Extra changes if available */}
       {(card.change_1w != null || card.change_1m != null) && (
-        <div style={{ display: "flex", gap: "0.8rem", marginTop: "0.4rem", fontSize: "0.78rem", color: "var(--text-mute)" }}>
+        <div style={{ display: "flex", gap: "0.8rem", marginTop: "0.4rem", fontSize: "0.78rem", color: "var(--text-soft)", fontFamily: "'JetBrains Mono', monospace" }}>
           {card.change_1w != null && (
             <span>
               1W: <span style={{ color: card.change_1w >= 0 ? "var(--green)" : "var(--red)", fontWeight: 600 }}>

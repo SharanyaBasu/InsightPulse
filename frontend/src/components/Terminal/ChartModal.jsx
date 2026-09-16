@@ -121,13 +121,13 @@ export default function ChartModal({ asset, data, onClose }) {
               <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
               <XAxis
                 dataKey="date"
-                tick={{ fontSize: 10, fill: "#484848", fontFamily: "'JetBrains Mono', monospace" }}
+                tick={{ fontSize: 10, fill: "#ffffff", fontFamily: "'JetBrains Mono', monospace" }}
                 tickLine={false}
                 axisLine={{ stroke: "var(--panel-border)" }}
                 interval="preserveStartEnd"
               />
               <YAxis
-                tick={{ fontSize: 10, fill: "#484848", fontFamily: "'JetBrains Mono', monospace" }}
+                tick={{ fontSize: 10, fill: "#ffffff", fontFamily: "'JetBrains Mono', monospace" }}
                 tickLine={false}
                 axisLine={{ stroke: "var(--panel-border)" }}
                 domain={["auto", "auto"]}
