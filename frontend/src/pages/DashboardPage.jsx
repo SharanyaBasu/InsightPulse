@@ -22,10 +22,20 @@ export default function DashboardPage() {
   const { data: chartData } = useAssetHistory(selectedAsset?.symbol);
 
   if (loading) return <TerminalLoader />;
-  if (!overview) return <div style={{ padding: "1rem", color: "var(--red)" }}>ERROR: No data available</div>;
+  if (!overview)
+    return (
+      <div style={{ padding: "1rem", color: "var(--red)" }}>
+        ERROR: No data available
+      </div>
+    );
 
   const s = overview.sentiment || {};
-  const scoreColor = s.score > 0 ? "var(--green)" : s.score < 0 ? "var(--red)" : "var(--text-soft)";
+  const scoreColor =
+    s.score > 0
+      ? "var(--green)"
+      : s.score < 0
+        ? "var(--red)"
+        : "var(--text-soft)";
 
   // Top 8 movers from cross_asset by absolute 1D change
   const topMovers = overview.cross_asset
@@ -39,20 +49,43 @@ export default function DashboardPage() {
     <div>
       {/* Sentiment Banner */}
       <TerminalPanel title="Sentiment" style={{ marginBottom: "0.5rem" }}>
-        <div style={{ display: "flex", alignItems: "baseline", gap: "2rem", flexWrap: "wrap" }}>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "baseline",
+            gap: "2rem",
+            flexWrap: "wrap",
+          }}
+        >
           <div>
-            <span style={{ color: scoreColor, fontSize: "1.6rem", fontWeight: 700 }}>
+            <span
+              style={{ color: scoreColor, fontSize: "1.6rem", fontWeight: 700 }}
+            >
               {s.label}
             </span>
-            <span style={{ color: scoreColor, fontSize: "1.1rem", marginLeft: "0.6rem" }}>
-              {s.score != null ? (s.score >= 0 ? "+" : "") + s.score.toFixed(2) : ""}
+            <span
+              style={{
+                color: scoreColor,
+                fontSize: "1.1rem",
+                marginLeft: "0.6rem",
+              }}
+            >
+              {s.score != null
+                ? (s.score >= 0 ? "+" : "") + s.score.toFixed(2)
+                : ""}
             </span>
           </div>
           <div style={{ fontSize: "0.85rem", color: "var(--text-soft)" }}>
-            Equity Trend: <span style={{ fontWeight: 600, color: "var(--text)" }}>{s.equity_trend}</span>
+            Equity Trend:{" "}
+            <span style={{ fontWeight: 600, color: "var(--text)" }}>
+              {s.equity_trend}
+            </span>
           </div>
           <div style={{ fontSize: "0.85rem", color: "var(--text-soft)" }}>
-            Drivers: <span style={{ color: "var(--text)" }}>{s.drivers?.join(", ")}</span>
+            Drivers:{" "}
+            <span style={{ color: "var(--text)" }}>
+              {s.drivers?.join(", ")}
+            </span>
           </div>
         </div>
       </TerminalPanel>
@@ -84,7 +117,13 @@ export default function DashboardPage() {
       </div>
 
       {/* Two-column: Regime + Top Movers */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem" }}>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "1fr 1fr",
+          gap: "0.5rem",
+        }}
+      >
         {/* Regime */}
         {overview.regime && (
           <TerminalPanel title="Macro Regime">
@@ -95,7 +134,12 @@ export default function DashboardPage() {
         {/* Top Movers */}
         <TerminalPanel title="Top Movers (1D)">
           {topMovers.map((asset) => {
-            const color = asset.change_1d > 0 ? "var(--green)" : asset.change_1d < 0 ? "var(--red)" : "var(--text-soft)";
+            const color =
+              asset.change_1d > 0
+                ? "var(--green)"
+                : asset.change_1d < 0
+                  ? "var(--red)"
+                  : "var(--text-soft)";
             return (
               <div
                 key={asset.symbol || asset.name}
@@ -109,9 +153,18 @@ export default function DashboardPage() {
                   cursor: "pointer",
                 }}
               >
-                <span style={{ color: "var(--text-soft)" }}>{asset.name}</span>
-                <span style={{ color, fontWeight: 600, fontVariantNumeric: "tabular-nums" }}>
-                  {asset.change_1d > 0 ? "+" : ""}{asset.change_1d.toFixed(2)}%
+                <span style={{ color: "var(--text)", fontWeight: 600 }}>
+                  {asset.name}
+                </span>
+                <span
+                  style={{
+                    color,
+                    fontWeight: 600,
+                    fontVariantNumeric: "tabular-nums",
+                  }}
+                >
+                  {asset.change_1d > 0 ? "+" : ""}
+                  {asset.change_1d.toFixed(2)}%
                 </span>
               </div>
             );
@@ -120,7 +173,14 @@ export default function DashboardPage() {
       </div>
 
       {/* Rates + Macro */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem", marginTop: "0.5rem" }}>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "1fr 1fr",
+          gap: "0.5rem",
+          marginTop: "0.5rem",
+        }}
+      >
         {overview.yield && (
           <TerminalPanel title="Rates & Curve">
             <YieldPanel yieldData={overview.yield} />
@@ -135,8 +195,17 @@ export default function DashboardPage() {
 
       {/* Cross-Asset Correlations */}
       {overview.correlations?.length > 0 && (
-        <TerminalPanel title="Cross-Asset Correlations" style={{ marginTop: "0.5rem" }}>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: "0.5rem" }}>
+        <TerminalPanel
+          title="Cross-Asset Correlations"
+          style={{ marginTop: "0.5rem" }}
+        >
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
+              gap: "0.5rem",
+            }}
+          >
             <CorrelationMonitor pairs={overview.correlations} />
           </div>
         </TerminalPanel>
@@ -145,7 +214,13 @@ export default function DashboardPage() {
       {/* Regions */}
       {overview.regions?.length > 0 && (
         <TerminalPanel title="Regions" style={{ marginTop: "0.5rem" }}>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: "0.4rem" }}>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
+              gap: "0.4rem",
+            }}
+          >
             {overview.regions.map((r) => (
               <RegionTile key={r.symbol} tile={r} />
             ))}
@@ -156,7 +231,13 @@ export default function DashboardPage() {
       {/* Sectors */}
       {overview.sectors?.length > 0 && (
         <TerminalPanel title="Sectors" style={{ marginTop: "0.5rem" }}>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: "0.4rem" }}>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
+              gap: "0.4rem",
+            }}
+          >
             {overview.sectors.map((s) => (
               <SectorTile key={s.symbol} tile={s} />
             ))}
