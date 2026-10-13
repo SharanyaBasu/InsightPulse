@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Treemap, ResponsiveContainer } from "recharts";
 
 // Interpolates between two hex colors by t (0–1)
@@ -20,7 +21,7 @@ function getTileColor(change, maxAbs) {
 
 function CustomContent({ x, y, width, height, name, change, color }) {
   if (width < 20 || height < 20) return null;
-  if (change === undefined || change === null) return null; // ADD THIS
+  if (change === undefined || change === null) return null;
 
   const fontSize = Math.min(width / 7, height / 4, 18);
   const smallFont = Math.max(fontSize * 0.7, 9);
@@ -83,24 +84,98 @@ function CustomContent({ x, y, width, height, name, change, color }) {
   );
 }
 
+function InfoTooltip() {
+  const [visible, setVisible] = useState(false);
+
+  return (
+    <div style={{ position: "relative", display: "inline-block" }}>
+      {/* "?" button */}
+      <button
+        onMouseEnter={() => setVisible(true)}
+        onMouseLeave={() => setVisible(false)}
+        onClick={() => setVisible((v) => !v)}
+        style={{
+          width: 18,
+          height: 18,
+          borderRadius: "50%",
+          border: "1px solid var(--text-soft)",
+          background: "transparent",
+          color: "var(--text-soft)",
+          fontSize: 11,
+          fontWeight: 700,
+          cursor: "pointer",
+          lineHeight: 1,
+          padding: 0,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        ?
+      </button>
+
+      {/* Tooltip */}
+      {visible && (
+        <div
+          style={{
+            position: "absolute",
+            top: 24,
+            left: 0,
+            zIndex: 100,
+            width: 280,
+            background: "#1b1e27",
+            border: "1px solid var(--panel-border)",
+            borderRadius: 8,
+            padding: "0.85rem 1rem",
+            boxShadow: "0 8px 24px rgba(0,0,0,0.5)",
+            color: "var(--text-soft)",
+            fontSize: "0.78rem",
+            lineHeight: 1.6,
+          }}
+        >
+          <p style={{ margin: "0 0 0.5rem", color: "var(--text)", fontWeight: 600, fontSize: "0.82rem" }}>
+            How are these percentages calculated?
+          </p>
+          <p style={{ margin: "0 0 0.5rem" }}>
+            Each sector's projected change is computed from real day-over-day market
+            signal shocks — NASDAQ, S&P 500, oil, 10Y yield, USD index, and copper.
+          </p>
+          <p style={{ margin: "0 0 0.5rem" }}>
+            Each signal is weighted based on how sensitive that sector historically
+            is to it. For example, Energy is heavily weighted to oil, while Utilities
+            are negatively weighted to interest rates.
+          </p>
+          <p style={{ margin: 0, color: "var(--text-mute)", fontSize: "0.74rem" }}>
+            Tile size reflects the sector's share of the S&P 500. Color intensity
+            reflects the magnitude of the projected move.
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function SectorHeatmap({ sectors }) {
   if (!sectors?.length) return null;
 
   const maxAbs = Math.max(...sectors.map((s) => Math.abs(s.change)));
 
-  // `size` drives tile area — use weight if available, else fall back to abs(change)
   const data = sectors.map((s) => ({
-  ...s,
-  change: s.change ?? 0,
-  size: s.weight ?? Math.max(Math.abs(s.change ?? 0), 0.1),
-  color: getTileColor(s.change ?? 0, maxAbs),
+    ...s,
+    change: s.change ?? 0,
+    size: s.weight ?? Math.max(Math.abs(s.change ?? 0), 0.1),
+    color: getTileColor(s.change ?? 0, maxAbs),
   }));
 
   return (
     <div>
-      <h3 style={{ color: "var(--blue)", marginBottom: "1rem", marginTop: 0 }}>
-        Sector Heatmap
-      </h3>
+      {/* Header row with title and info icon */}
+      <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "1rem" }}>
+        <h3 style={{ color: "var(--blue)", margin: 0 }}>
+          Sector Heatmap
+        </h3>
+        <InfoTooltip />
+      </div>
 
       {/* Legend */}
       <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.75rem" }}>
@@ -114,7 +189,7 @@ export default function SectorHeatmap({ sectors }) {
         <span style={{ fontSize: "0.75rem", color: "var(--text-soft)" }}>Positive</span>
       </div>
 
-      <div style={{ width: "100%", height: 420 }}>
+      <div style={{ width: "100%", height: 420, minHeight: 420 }}>
         <ResponsiveContainer width="100%" height="100%">
           <Treemap
             data={data}

@@ -15,7 +15,7 @@ Start the backend first in a separate terminal:
 
 ```bash
 cd backend
-source .venv/bin/activate
+source .venv/Scripts/activate
 python -m uvicorn app:app --reload
 ```
 

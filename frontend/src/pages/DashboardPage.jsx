@@ -69,7 +69,7 @@ export default function DashboardPage() {
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+          gridTemplateColumns: "repeat(3, 1fr)",
           gap: "0.4rem",
           marginBottom: "0.5rem",
         }}
