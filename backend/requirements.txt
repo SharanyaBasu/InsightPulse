@@ -54,3 +54,17 @@ scipy==1.18.0
 threadpoolctl==3.6.0
 # Editable install of repo-root scenario_modeling (run pip from backend/)
 -e ..
+
+# Regression baseline analysis and plotting
+contourpy==1.3.0
+cycler==0.12.1
+exceptiongroup==1.3.1
+fonttools==4.60.2
+importlib_resources==6.5.2
+kiwisolver==1.4.7
+matplotlib==3.9.4
+packaging==26.2
+pillow==11.3.0
+pyarrow==21.0.0
+pyparsing==3.3.2
+zipp==3.23.1
