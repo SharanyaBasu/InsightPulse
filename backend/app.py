@@ -1,4 +1,5 @@
 from fastapi import FastAPI
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from db import SessionLocal
 from models import MarketData, MacroData, MarketState, MarketSummary
@@ -12,7 +13,7 @@ from data_fetcher import (
 from fastapi.responses import JSONResponse
 from overview_service import build_overview_snapshot
 from market_state_service import build_market_state
-from llm_summary import generate_summary
+from llm_summary import generate_summary_with_guardrail
 from datetime import date
 from schemas.scenario import ScenarioRunRequest, ScenarioRunResponse
 from scenario_service import run_scenario as run_scenario_engine
@@ -148,13 +149,22 @@ def _save_market_state(db: Session, market_state: dict) -> None:
 
 
 def _get_or_compute_today_market_state(db: Session, run_ingestion: bool) -> dict:
+    """Load today's market state or rebuild it after ingestion.
+
+    Args:
+        db: Active database session.
+        run_ingestion: Whether to refresh source data before building the state.
+
+    Returns:
+        Today's stored or newly built market state.
+    """
+
     today = date.today()
     existing = db.query(MarketState).filter(MarketState.date == today).first()
-    if existing:
+    if existing and not run_ingestion:
         return existing.data
 
-    if run_ingestion:
-        _run_daily_ingestion()
+    _run_daily_ingestion()
 
     market_state = build_market_state(db)
     _save_market_state(db, market_state)
@@ -196,10 +206,17 @@ def summary_daily(refresh_data: bool = False):
                 return existing_summary.summary
 
             market_state = _get_or_compute_today_market_state(db, run_ingestion=refresh_data)
-            summary = generate_summary(market_state)
+            summary = generate_summary_with_guardrail(market_state)
 
             db.add(MarketSummary(date=today, summary=summary))
-            db.commit()
+            try:
+                db.commit()
+            except IntegrityError:
+                db.rollback()
+                existing_summary = db.query(MarketSummary).filter(MarketSummary.date == today).first()
+                if existing_summary:
+                    return existing_summary.summary
+                raise
 
             return summary
         finally:

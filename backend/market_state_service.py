@@ -219,27 +219,37 @@ def _build_stress_flags(metrics: dict) -> list:
 
 
 def _build_asset_class_snapshot(metrics: dict) -> list:
+    """Build per-asset return snapshots grouped by asset class.
+
+    Args:
+        metrics: Calculated metrics keyed by metric ID.
+
+    Returns:
+        Asset classes with their available member returns and evidence IDs.
+    """
+
     snapshot = []
 
     for asset_class, assets in ASSET_CLASSES.items():
-        returns = []
-        evidence_ids = []
+        members = []
         for asset in assets:
             metric_id = f"{asset}_5d_return"
             value = _metric_value(metrics, metric_id)
             if value is None:
                 continue
-            returns.append(_display_value(metric_id, float(value)))
-            evidence_ids.append(metric_id)
+            members.append({
+                "asset": asset,
+                "metric": metric_id,
+                "return_5d_pct": _display_value(metric_id, float(value)),
+                "evidence_id": metric_id,
+            })
 
-        if not returns:
+        if not members:
             continue
 
-        return_5d_pct = round(sum(returns) / len(returns), 3)
         snapshot.append({
             "class": asset_class,
-            "return_5d_pct": return_5d_pct,
-            "evidence_ids": evidence_ids,
+            "members": members,
         })
 
     return snapshot
@@ -307,6 +317,18 @@ def _build_mood_5d(metrics: dict) -> dict:
 
 
 def _collect_evidence_ids(drivers, stress_flags, mood_5d, asset_class_snapshot) -> set[str]:
+    """Collect metric IDs needed to support summary claims.
+
+    Args:
+        drivers: Market drivers included in the state.
+        stress_flags: Active market stress flags.
+        mood_5d: Five-day market mood data.
+        asset_class_snapshot: Per-asset returns grouped by asset class.
+
+    Returns:
+        Metric IDs that should be included in the evidence map.
+    """
+
     ids = set(REGIME_METRICS)
     for driver in drivers:
         ids.add(driver["evidence_id"])
@@ -315,7 +337,8 @@ def _collect_evidence_ids(drivers, stress_flags, mood_5d, asset_class_snapshot) 
     for feature in mood_5d.get("top_features", []):
         ids.add(feature["name"])
     for row in asset_class_snapshot:
-        ids.update(row.get("evidence_ids", []))
+        for member in row.get("members", []):
+            ids.add(member["evidence_id"])
     return ids
 
 
