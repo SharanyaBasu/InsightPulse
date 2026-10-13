@@ -4,6 +4,9 @@ Basic setup for running the InsightPulse FastAPI backend.
 
 ## Install
 
+Use Python 3.12 or newer: the pinned SciPy 1.18 runtime does not support
+Python 3.11.
+
 ```bash
 cd backend
 python3 -m venv .venv
@@ -75,4 +78,17 @@ API docs:
 
 ```bash
 http://127.0.0.1:8000/docs
+```
+
+### Local preview environment
+
+A separate Python 3.13 environment at the repository root (`.venv/`) can
+run the backend while preserving an existing `backend/.venv` environment:
+
+```bash
+# From the repository root
+python3.13 -m venv .venv
+cd backend
+../.venv/bin/python -m pip install -r requirements.txt
+../.venv/bin/python -m uvicorn app:app --host 127.0.0.1 --port 8000
 ```
