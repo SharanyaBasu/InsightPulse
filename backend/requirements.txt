@@ -45,3 +45,11 @@ uvicorn==0.41.0
 watchfiles==1.1.1
 websockets==16.0
 yfinance==1.2.0
+
+# Scenario Playground Ridge v1 inference runtime
+joblib==1.5.3
+scikit-learn==1.9.0
+scipy==1.18.0
+threadpoolctl==3.6.0
+# Editable install of repo-root scenario_modeling (run pip from backend/)
+-e ..

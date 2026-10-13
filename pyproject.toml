@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "insightpulse-scenario-modeling"
+version = "1.0.0"
+description = "InsightPulse Scenario Playground Ridge inference package"
+requires-python = ">=3.11"
+dependencies = [
+  "joblib==1.5.3",
+  "numpy==2.4.3",
+  "pandas==3.0.1",
+  "scikit-learn==1.9.0",
+  "scipy==1.18.0",
+  "threadpoolctl==3.6.0",
+]
+
+[tool.setuptools.packages.find]
+include = ["scenario_modeling", "scenario_modeling.src"]
+exclude = ["scenario_modeling.artifacts*", "scenario_modeling.tests*"]

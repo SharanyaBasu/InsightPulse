@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useCallback, useEffect } from "react";
+import axios from "axios";
 
 const STORAGE_KEY = "insightpulse.macroInputs";
 
@@ -73,6 +74,19 @@ export const DEFAULT_MACRO_INPUTS = Object.fromEntries(
   MACRO_INPUT_FIELDS.map((f) => [f.key, 0])
 );
 
+export function buildScenarioObject(inputs) {
+  return {
+    fed_funds_change_bps: inputs.fedFundsRateChange,
+    cpi_surprise_pct: inputs.cpiSurprise,
+    oil_change_pct: inputs.oilPriceChange,
+    gdp_surprise_pct: inputs.gdpGrowthSurprise,
+    unemployment_change_pct: inputs.unemploymentChange,
+    pmi_change: inputs.pmiChange,
+    dxy_change_pct: inputs.dxyChange,
+    vix_change_pct: inputs.vixChange,
+  };
+}
+
 function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
 }
@@ -107,6 +121,10 @@ export function MacroInputsProvider({ children }) {
     }
   });
   const [dirty, setDirty] = useState(false);
+  const [scenarioResult, setScenarioResult] = useState(null);
+  const [lastRunAt, setLastRunAt] = useState(null);
+  const [runLoading, setRunLoading] = useState(false);
+  const [runError, setRunError] = useState(null);
 
   useEffect(() => {
     const onBeforeUnload = (e) => {
@@ -123,8 +141,18 @@ export function MacroInputsProvider({ children }) {
     const field = MACRO_INPUT_FIELDS.find((f) => f.key === key);
     if (!field) return;
 
-    const parsed = rawValue === "" ? 0 : Number(rawValue);
-    if (Number.isNaN(parsed)) return;
+    let parsed;
+    if (typeof rawValue === "number") {
+      parsed = rawValue;
+    } else {
+      const trimmed = String(rawValue).trim();
+      if (trimmed === "" || trimmed === "-" || trimmed === "." || trimmed === "-.") {
+        parsed = 0;
+      } else {
+        parsed = Number(trimmed);
+        if (Number.isNaN(parsed)) return;
+      }
+    }
 
     setInputs((prev) => ({
       ...prev,
@@ -147,6 +175,9 @@ export function MacroInputsProvider({ children }) {
 
   const resetInputs = useCallback(() => {
     setInputs(DEFAULT_MACRO_INPUTS);
+    setScenarioResult(null);
+    setLastRunAt(null);
+    setRunError(null);
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(DEFAULT_MACRO_INPUTS));
       const stamp = new Date().toISOString();
@@ -158,9 +189,40 @@ export function MacroInputsProvider({ children }) {
     }
   }, []);
 
+  const runScenario = useCallback(async (overrideInputs) => {
+    const source = overrideInputs || inputs;
+    const payload = buildScenarioObject(source);
+    setRunLoading(true);
+    setRunError(null);
+    try {
+      const res = await axios.post("/api/scenario/run", payload);
+      setScenarioResult(res.data);
+      setLastRunAt(new Date());
+      return res.data;
+    } catch (err) {
+      console.error("Failed to run scenario:", err);
+      setRunError(err.response?.data?.detail || err.message || "Scenario run failed");
+      throw err;
+    } finally {
+      setRunLoading(false);
+    }
+  }, [inputs]);
+
   return (
     <MacroInputsContext.Provider
-      value={{ inputs, setInput, saveInputs, resetInputs, dirty, savedAt }}
+      value={{
+        inputs,
+        setInput,
+        saveInputs,
+        resetInputs,
+        runScenario,
+        scenarioResult,
+        lastRunAt,
+        runLoading,
+        runError,
+        dirty,
+        savedAt,
+      }}
     >
       {children}
     </MacroInputsContext.Provider>
