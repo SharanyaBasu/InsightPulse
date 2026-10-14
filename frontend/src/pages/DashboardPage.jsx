@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useMarketData } from "../context/MarketDataContext";
+import { useMarketData } from "../context/useMarketData";
 import useAssetHistory from "../hooks/useAssetHistory";
 import TerminalLoader from "../components/Terminal/TerminalLoader";
 import TerminalPanel from "../components/Terminal/TerminalPanel";

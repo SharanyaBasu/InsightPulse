@@ -1,118 +1,21 @@
-import { createContext, useContext, useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import axios from "axios";
 
-const STORAGE_KEY = "insightpulse.macroInputs";
-
-export const MACRO_INPUT_FIELDS = [
-  {
-    key: "fedFundsRateChange",
-    label: "Fed Funds Rate Change",
-    unit: "bps",
-    min: -100,
-    max: 100,
-    step: 1,
-  },
-  {
-    key: "cpiSurprise",
-    label: "CPI Surprise",
-    unit: "%",
-    min: -2,
-    max: 2,
-    step: 0.1,
-  },
-  {
-    key: "oilPriceChange",
-    label: "Oil Price Change",
-    unit: "%",
-    min: -30,
-    max: 30,
-    step: 0.5,
-  },
-  {
-    key: "gdpGrowthSurprise",
-    label: "GDP Growth Surprise",
-    unit: "%",
-    min: -5,
-    max: 5,
-    step: 0.1,
-  },
-  {
-    key: "unemploymentChange",
-    label: "Unemployment Change",
-    unit: "%",
-    min: -2,
-    max: 2,
-    step: 0.1,
-  },
-  {
-    key: "pmiChange",
-    label: "PMI Change",
-    unit: "points",
-    min: -10,
-    max: 10,
-    step: 0.5,
-  },
-  {
-    key: "dxyChange",
-    label: "DXY Change",
-    unit: "%",
-    min: -10,
-    max: 10,
-    step: 0.5,
-  },
-  {
-    key: "vixChange",
-    label: "VIX Change",
-    unit: "%",
-    min: -50,
-    max: 100,
-    step: 1,
-  },
-];
-
-export const DEFAULT_MACRO_INPUTS = Object.fromEntries(
-  MACRO_INPUT_FIELDS.map((f) => [f.key, 0])
-);
-
-export function buildScenarioObject(inputs) {
-  return {
-    fed_funds_change_bps: inputs.fedFundsRateChange,
-    cpi_surprise_pct: inputs.cpiSurprise,
-    oil_change_pct: inputs.oilPriceChange,
-    gdp_surprise_pct: inputs.gdpGrowthSurprise,
-    unemployment_change_pct: inputs.unemploymentChange,
-    pmi_change: inputs.pmiChange,
-    dxy_change_pct: inputs.dxyChange,
-    vix_change_pct: inputs.vixChange,
-  };
-}
+import { MACRO_INPUT_FIELDS, DEFAULT_MACRO_INPUTS, STORAGE_KEY, buildScenarioObject, loadSavedInputs, inputsMatch } from "./macroInputs";
 
 function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
 }
 
-function loadSavedInputs() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return DEFAULT_MACRO_INPUTS;
-    const parsed = JSON.parse(raw);
-    const merged = { ...DEFAULT_MACRO_INPUTS };
-    for (const field of MACRO_INPUT_FIELDS) {
-      const value = parsed[field.key];
-      if (typeof value === "number" && !Number.isNaN(value)) {
-        merged[field.key] = clamp(value, field.min, field.max);
-      }
-    }
-    return merged;
-  } catch {
-    return DEFAULT_MACRO_INPUTS;
-  }
-}
-
-const MacroInputsContext = createContext(null);
+import { MacroInputsContext } from "./useMacroInputs";
 
 export function MacroInputsProvider({ children }) {
-  const [inputs, setInputs] = useState(loadSavedInputs);
+  const [initialState] = useState(() => {
+    try { return loadSavedInputs(window.localStorage); }
+    catch { return { inputs: { ...DEFAULT_MACRO_INPUTS }, notice: null }; }
+  });
+  const [inputs, setInputs] = useState(initialState.inputs);
+  const [unitNotice, setUnitNotice] = useState(initialState.notice);
   const [savedAt, setSavedAt] = useState(() => {
     try {
       return localStorage.getItem(`${STORAGE_KEY}.savedAt`);
@@ -120,11 +23,20 @@ export function MacroInputsProvider({ children }) {
       return null;
     }
   });
-  const [dirty, setDirty] = useState(false);
+  const [dirty, setDirty] = useState(Boolean(initialState.notice));
   const [scenarioResult, setScenarioResult] = useState(null);
   const [lastRunAt, setLastRunAt] = useState(null);
   const [runLoading, setRunLoading] = useState(false);
   const [runError, setRunError] = useState(null);
+  const [submittedInputs, setSubmittedInputs] = useState(null);
+  const requestSequence = useRef(0);
+  const activeRequest = useRef(null);
+  const resultsStale = Boolean(submittedInputs && !inputsMatch(inputs, submittedInputs));
+
+  useEffect(() => () => {
+    requestSequence.current += 1;
+    activeRequest.current?.abort();
+  }, []);
 
   useEffect(() => {
     const onBeforeUnload = (e) => {
@@ -167,6 +79,7 @@ export function MacroInputsProvider({ children }) {
       const stamp = new Date().toISOString();
       localStorage.setItem(`${STORAGE_KEY}.savedAt`, stamp);
       setSavedAt(stamp);
+      setUnitNotice(null);
       setDirty(false);
     } catch (err) {
       console.error("Failed to save macro inputs:", err);
@@ -174,6 +87,10 @@ export function MacroInputsProvider({ children }) {
   }, [inputs]);
 
   const resetInputs = useCallback(() => {
+    requestSequence.current += 1;
+    activeRequest.current?.abort();
+    setRunLoading(false);
+    setSubmittedInputs(null);
     setInputs(DEFAULT_MACRO_INPUTS);
     setScenarioResult(null);
     setLastRunAt(null);
@@ -183,6 +100,7 @@ export function MacroInputsProvider({ children }) {
       const stamp = new Date().toISOString();
       localStorage.setItem(`${STORAGE_KEY}.savedAt`, stamp);
       setSavedAt(stamp);
+      setUnitNotice(null);
       setDirty(false);
     } catch {
       setDirty(false);
@@ -190,21 +108,28 @@ export function MacroInputsProvider({ children }) {
   }, []);
 
   const runScenario = useCallback(async (overrideInputs) => {
-    const source = overrideInputs || inputs;
+    const source = { ...(overrideInputs || inputs) };
     const payload = buildScenarioObject(source);
+    const sequence = ++requestSequence.current;
+    activeRequest.current?.abort();
+    const controller = new AbortController();
+    activeRequest.current = controller;
     setRunLoading(true);
     setRunError(null);
     try {
-      const res = await axios.post("/api/scenario/run", payload);
+      const res = await axios.post("/api/scenario/run", payload, { signal: controller.signal });
+      if (sequence !== requestSequence.current) return;
       setScenarioResult(res.data);
+      setSubmittedInputs(source);
       setLastRunAt(new Date());
       return res.data;
     } catch (err) {
-      console.error("Failed to run scenario:", err);
-      setRunError(err.response?.data?.detail || err.message || "Scenario run failed");
+      if (sequence !== requestSequence.current || axios.isCancel(err)) return;
+      const detail = err.response?.data?.detail;
+      setRunError(typeof detail === "string" ? detail : err.message || "Scenario run failed");
       throw err;
     } finally {
-      setRunLoading(false);
+      if (sequence === requestSequence.current) setRunLoading(false);
     }
   }, [inputs]);
 
@@ -217,20 +142,17 @@ export function MacroInputsProvider({ children }) {
         resetInputs,
         runScenario,
         scenarioResult,
+        submittedInputs,
+        resultsStale,
         lastRunAt,
         runLoading,
         runError,
         dirty,
         savedAt,
+        unitNotice,
       }}
     >
       {children}
     </MacroInputsContext.Provider>
   );
-}
-
-export function useMacroInputs() {
-  const ctx = useContext(MacroInputsContext);
-  if (!ctx) throw new Error("useMacroInputs must be used within MacroInputsProvider");
-  return ctx;
 }

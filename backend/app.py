@@ -1,4 +1,5 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
+from threading import Lock
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from db import SessionLocal
@@ -149,11 +150,11 @@ def _save_market_state(db: Session, market_state: dict) -> None:
 
 
 def _get_or_compute_today_market_state(db: Session, run_ingestion: bool) -> dict:
-    """Load today's market state or rebuild it after ingestion.
+    """Load today's market state or rebuild it from stored data or explicit ingestion.
 
     Args:
         db: Active database session.
-        run_ingestion: Whether to refresh source data before building the state.
+        run_ingestion: Whether to refresh external sources rather than stored metrics.
 
     Returns:
         Today's stored or newly built market state.
@@ -164,9 +165,16 @@ def _get_or_compute_today_market_state(db: Session, run_ingestion: bool) -> dict
     if existing and not run_ingestion:
         return existing.data
 
-    _run_daily_ingestion()
+    if run_ingestion:
+        _run_daily_ingestion()
+    else:
+        # Summary requests use stored source data; refreshing every provider is a
+        # separate operation and must not block reading the dashboard.
+        get_calculated_metrics()
 
     market_state = build_market_state(db)
+    if not market_state.get("evidence"):
+        raise RuntimeError("No market evidence is available; ingest market data first.")
     _save_market_state(db, market_state)
     return market_state
 
@@ -194,21 +202,38 @@ def compute_daily(skip_ingestion: bool = False):
         print("ERROR in compute/daily:", e)
         return {"error": str(e)}
 
+_summary_lock = Lock()
+
+
 @app.get("/api/summary/daily")
 def summary_daily(refresh_data: bool = False):
+    """Generate once per day from stored evidence; reject overlapping work promptly."""
+    if not refresh_data:
+        with SessionLocal() as cached_db:
+            cached = cached_db.query(MarketSummary).filter(MarketSummary.date == date.today()).first()
+            if cached:
+                return cached.summary
+    if not _summary_lock.acquire(blocking=False):
+        raise HTTPException(503, "A market summary is already being generated. Retry shortly.", headers={"Retry-After": "5"})
     try:
         db: Session = SessionLocal()
         try:
             today = date.today()
 
             existing_summary = db.query(MarketSummary).filter(MarketSummary.date == today).first()
-            if existing_summary:
+            if existing_summary and not refresh_data:
                 return existing_summary.summary
 
             market_state = _get_or_compute_today_market_state(db, run_ingestion=refresh_data)
             summary = generate_summary_with_guardrail(market_state)
+            dates = sorted({str(row["timestamp"])[:10] for row in market_state.get("evidence", {}).values() if row.get("timestamp")})
+            if dates:
+                summary["data_as_of"] = {"oldest": dates[0], "latest": dates[-1]}
 
-            db.add(MarketSummary(date=today, summary=summary))
+            if existing_summary:
+                existing_summary.summary = summary
+            else:
+                db.add(MarketSummary(date=today, summary=summary))
             try:
                 db.commit()
             except IntegrityError:
@@ -223,8 +248,10 @@ def summary_daily(refresh_data: bool = False):
             db.close()
 
     except Exception as e:
-        print("ERROR in /summary/daily:", e)
-        return {"error": str(e)}
+        print("ERROR in /summary/daily:", type(e).__name__)
+        raise HTTPException(503, "Market summary generation failed. Please retry shortly.") from e
+    finally:
+        _summary_lock.release()
 
 @app.get("/debug/market_state")
 def debug_market_state():

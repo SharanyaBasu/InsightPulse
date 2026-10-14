@@ -35,8 +35,7 @@ API_TO_MODEL_SHOCKS = {
     "unemployment_change_pct": "unemployment_change_pct",
     "pmi_change": "pmi_change_points",
     "dxy_change_pct": "dxy_change_pct",
-    # Handoff unit is VIX index points; UI currently labels this as %.
-    "vix_change_pct": "vix_change_points",
+    "vix_change_points": "vix_change_points",
 }
 
 ASSET_TARGETS = (
@@ -169,13 +168,24 @@ def adapt_research_result(research_result: dict[str, Any]) -> dict[str, Any]:
     sample_date = context.get("sample_date") or "2026-06-11"
     horizon = research_result.get("horizon_trading_days", 21)
     sp500 = assets["sp500"]
-    direction = "higher" if sp500 >= 0 else "lower"
-
-    summary = (
-        f"Against the fixed {sample_date} market state, Ridge projects "
-        f"equities {direction} ({sp500:+.2f}% S&P 500 incremental "
-        f"{horizon}-trading-day effect; {confidence.lower()} research confidence)."
-    )
+    neutral = all(value == 0 for value in research_result["scenario_shocks"].values())
+    if neutral:
+        summary = (
+            "No shocks applied. Results match baseline. Zero means no additional "
+            "impact, not a prediction that markets will stay flat."
+        )
+    elif sp500 == 0:
+        summary = (
+            f"Against the fixed {sample_date} market state, the S&P 500 incremental "
+            f"{horizon}-trading-day effect rounds to 0.00%; shocks were applied."
+        )
+    else:
+        direction = "higher" if sp500 > 0 else "lower"
+        summary = (
+            f"Against the fixed {sample_date} market state, Ridge projects "
+            f"equities {direction} ({sp500:+.2f}% S&P 500 incremental "
+            f"{horizon}-trading-day effect; {confidence.lower()} research confidence)."
+        )
 
     drivers = _top_incremental_driver_names(research_result)
     if drivers:
@@ -197,6 +207,12 @@ def adapt_research_result(research_result: dict[str, Any]) -> dict[str, Any]:
     )
 
     return {
+        "context": {
+            "baseline_date": sample_date,
+            "horizon_trading_days": horizon,
+            "effect_type": "incremental_vs_baseline",
+            "neutral_inputs": neutral,
+        },
         "summary": summary,
         "regime": regime,
         "confidence": confidence,

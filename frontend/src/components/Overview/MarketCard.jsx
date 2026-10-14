@@ -24,6 +24,9 @@ export default function MarketCard({ card, onClick }) {
         {card.name}
       </div>
 
+      <div style={{ fontSize: "0.68rem", color: "var(--text-mute)", marginBottom: "0.35rem" }}>
+        Observation: {card.observed_on || "date unavailable"}
+      </div>
       {/* Price */}
       <div style={{ fontSize: "1.6rem", fontWeight: 700, color: "var(--text)", marginBottom: "0.35rem" }}>
         {Number(card.price).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}

@@ -33,7 +33,7 @@ INPUT_KEYS = (
     "unemployment_change_pct",
     "pmi_change",
     "dxy_change_pct",
-    "vix_change_pct",
+    "vix_change_points",
 )
 
 # Max absolute scale used to normalize each input to roughly [-1, 1]
@@ -45,7 +45,7 @@ INPUT_SCALES = {
     "unemployment_change_pct": 2.0,
     "pmi_change": 10.0,
     "dxy_change_pct": 10.0,
-    "vix_change_pct": 100.0,
+    "vix_change_points": 100.0,
 }
 
 # Asset impact coefficients: projected_change ~= sum(coeff * normalized_input)
@@ -59,7 +59,7 @@ ASSET_COEFFICIENTS = {
         "unemployment_change_pct": -1.0,
         "pmi_change": 1.1,
         "dxy_change_pct": -0.5,
-        "vix_change_pct": -1.6,
+        "vix_change_points": -1.6,
     },
     "nasdaq": {
         "fed_funds_change_bps": -1.6,
@@ -69,7 +69,7 @@ ASSET_COEFFICIENTS = {
         "unemployment_change_pct": -1.1,
         "pmi_change": 1.3,
         "dxy_change_pct": -0.6,
-        "vix_change_pct": -1.9,
+        "vix_change_points": -1.9,
     },
     "ten_year_yield_bps": {
         "fed_funds_change_bps": 35.0,
@@ -79,7 +79,7 @@ ASSET_COEFFICIENTS = {
         "unemployment_change_pct": -15.0,
         "pmi_change": 10.0,
         "dxy_change_pct": 5.0,
-        "vix_change_pct": -8.0,
+        "vix_change_points": -8.0,
     },
     "dxy": {
         "fed_funds_change_bps": 0.8,
@@ -89,7 +89,7 @@ ASSET_COEFFICIENTS = {
         "unemployment_change_pct": -0.3,
         "pmi_change": 0.2,
         "dxy_change_pct": 1.0,
-        "vix_change_pct": 0.5,
+        "vix_change_points": 0.5,
     },
     "gold": {
         "fed_funds_change_bps": -0.7,
@@ -99,7 +99,7 @@ ASSET_COEFFICIENTS = {
         "unemployment_change_pct": 0.4,
         "pmi_change": -0.2,
         "dxy_change_pct": -0.8,
-        "vix_change_pct": 0.6,
+        "vix_change_points": 0.6,
     },
     "oil": {
         "fed_funds_change_bps": -0.3,
@@ -109,7 +109,7 @@ ASSET_COEFFICIENTS = {
         "unemployment_change_pct": -0.4,
         "pmi_change": 0.5,
         "dxy_change_pct": -0.4,
-        "vix_change_pct": -0.3,
+        "vix_change_points": -0.3,
     },
 }
 
@@ -122,7 +122,7 @@ SECTOR_COEFFICIENTS = {
         "unemployment_change_pct": -1.0,
         "pmi_change": 1.4,
         "dxy_change_pct": -0.7,
-        "vix_change_pct": -2.0,
+        "vix_change_points": -2.0,
     },
     "energy": {
         "fed_funds_change_bps": -0.2,
@@ -132,7 +132,7 @@ SECTOR_COEFFICIENTS = {
         "unemployment_change_pct": -0.3,
         "pmi_change": 0.4,
         "dxy_change_pct": -0.3,
-        "vix_change_pct": -0.4,
+        "vix_change_points": -0.4,
     },
     "financials": {
         "fed_funds_change_bps": 0.6,
@@ -142,7 +142,7 @@ SECTOR_COEFFICIENTS = {
         "unemployment_change_pct": -0.8,
         "pmi_change": 0.7,
         "dxy_change_pct": 0.2,
-        "vix_change_pct": -1.2,
+        "vix_change_points": -1.2,
     },
     "utilities": {
         "fed_funds_change_bps": -0.9,
@@ -152,7 +152,7 @@ SECTOR_COEFFICIENTS = {
         "unemployment_change_pct": 0.3,
         "pmi_change": -0.2,
         "dxy_change_pct": -0.1,
-        "vix_change_pct": 0.4,
+        "vix_change_points": 0.4,
     },
     "healthcare": {
         "fed_funds_change_bps": -0.4,
@@ -162,7 +162,7 @@ SECTOR_COEFFICIENTS = {
         "unemployment_change_pct": -0.2,
         "pmi_change": 0.3,
         "dxy_change_pct": -0.2,
-        "vix_change_pct": -0.5,
+        "vix_change_points": -0.5,
     },
     "consumer_discretionary": {
         "fed_funds_change_bps": -1.3,
@@ -172,7 +172,7 @@ SECTOR_COEFFICIENTS = {
         "unemployment_change_pct": -1.2,
         "pmi_change": 1.0,
         "dxy_change_pct": -0.4,
-        "vix_change_pct": -1.5,
+        "vix_change_points": -1.5,
     },
 }
 
@@ -195,7 +195,7 @@ DRIVER_LABELS = {
     "unemployment_change_pct": "unemployment",
     "pmi_change": "PMI",
     "dxy_change_pct": "the dollar (DXY)",
-    "vix_change_pct": "VIX",
+    "vix_change_points": "VIX",
 }
 
 
@@ -249,7 +249,7 @@ def _score_regime(normalized: dict[str, float]) -> tuple[str, str, float]:
     """Return (regime_label, confidence, strength)."""
 
     risk_off = (
-        0.35 * normalized["vix_change_pct"]
+        0.35 * normalized["vix_change_points"]
         + 0.20 * normalized["fed_funds_change_bps"]
         + 0.15 * normalized["unemployment_change_pct"]
         + 0.10 * normalized["dxy_change_pct"]
@@ -262,7 +262,7 @@ def _score_regime(normalized: dict[str, float]) -> tuple[str, str, float]:
         + 0.20 * normalized["fed_funds_change_bps"]
     )
     liquidity_stress = (
-        0.50 * normalized["vix_change_pct"]
+        0.50 * normalized["vix_change_points"]
         + 0.30 * normalized["dxy_change_pct"]
         + 0.20 * normalized["fed_funds_change_bps"]
     )

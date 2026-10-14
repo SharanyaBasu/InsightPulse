@@ -4,10 +4,9 @@ import { NavLink, useNavigate } from "react-router-dom";
 const TABS = [
   { key: "1", label: "OVERVIEW", to: "/" },
   { key: "2", label: "CROSS-ASSET", to: "/cross-asset" },
-  { key: "3", label: "MACRO", to: "/macro" },
-  { key: "4", label: "SECTORS", to: "/sectors" },
-  { key: "5", label: "SIGNALS", to: "/signals" },
-  { key: "6", label: "SCENARIO", to: "/scenario" },
+  { key: "3", label: "SECTORS", to: "/sectors" },
+  { key: "4", label: "SIGNALS", to: "/signals" },
+  { key: "5", label: "SCENARIO", to: "/scenario" },
 ];
 
 export default function NavBar({ onShowHelp }) {

@@ -1,6 +1,11 @@
 import os
 from dotenv import load_dotenv
 import json
+import time
+from contextvars import ContextVar
+from google.api_core.exceptions import ServiceUnavailable, DeadlineExceeded
+
+_GENERATION_DEADLINE = ContextVar("summary_generation_deadline", default=None)
 
 from summary_validator import build_fallback_summary, validate_summary
 
@@ -121,7 +126,7 @@ Return passed=false with short issue strings if it is not.
 """
 
 
-def _get_model():
+def _get_model(model_name=None):
     """Create the configured Gemini model."""
 
     api_key = os.getenv("GEMINI_API_KEY")
@@ -137,8 +142,39 @@ def _get_model():
         ) from exc
 
     genai.configure(api_key=api_key)
-    model_name = os.getenv("GEMINI_MODEL", "gemini-3.5-flash")
+    model_name = model_name or os.getenv("GEMINI_MODEL", "gemini-3.5-flash")
     return genai.GenerativeModel(model_name)
+
+
+def _generate_content(prompt, schema, temperature):
+    """Use a bounded alternate model when the primary is overloaded or times out."""
+    names = dict.fromkeys([
+        os.getenv("GEMINI_MODEL", "gemini-3.5-flash"),
+        os.getenv("GEMINI_FALLBACK_MODEL", "gemini-2.5-flash"),
+    ])
+    deadline = _GENERATION_DEADLINE.get() or time.monotonic() + 60
+    last_error = None
+    for name in names:
+        if not name:
+            continue
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise TimeoutError("Summary generation exceeded its time limit")
+        try:
+            response = _get_model(name).generate_content(
+                prompt,
+                request_options={"timeout": min(30, remaining), "retry": None},
+                generation_config={
+                    "temperature": temperature,
+                    "response_mime_type": "application/json",
+                    "response_schema": schema,
+                },
+            )
+            return response, name
+        except (ServiceUnavailable, DeadlineExceeded) as exc:
+            last_error = exc
+            print(f"Summary model {name} unavailable ({type(exc).__name__}); trying configured fallback.")
+    raise last_error or RuntimeError("No summary model configured")
 
 
 def generate_summary(
@@ -172,17 +208,10 @@ def generate_summary(
     {json.dumps(market_state, indent=2)}
     """
 
-    model = _get_model()
-    response = model.generate_content(
-        prompt,
-        generation_config={
-            "temperature": 0.2,
-            "response_mime_type": "application/json",
-            "response_schema": SUMMARY_SCHEMA,
-        },
-    )
+    response, model_name = _generate_content(prompt, SUMMARY_SCHEMA, 0.2)
 
     parsed = json.loads(response.text)
+    parsed["generation_model"] = model_name
     parsed["as_of"] = market_state.get("as_of")
     parsed["regime_label"] = market_state.get("regime", {}).get("label")
     return parsed
@@ -210,15 +239,7 @@ Generated summary JSON:
 """
 
     try:
-        model = _get_model()
-        response = model.generate_content(
-            prompt,
-            generation_config={
-                "temperature": 0.0,
-                "response_mime_type": "application/json",
-                "response_schema": VERIFIER_SCHEMA,
-            },
-        )
+        response, _ = _generate_content(prompt, VERIFIER_SCHEMA, 0.0)
         parsed = json.loads(response.text)
         return {
             "passed": bool(parsed.get("passed")),
@@ -267,7 +288,7 @@ def _try_generate_valid_summary(
     return None, last_errors
 
 
-def generate_summary_with_guardrail(
+def _generate_summary_with_guardrail(
     market_state: dict,
     max_retries: int = 1,
 ) -> dict:
@@ -328,3 +349,12 @@ def generate_summary_with_guardrail(
         "semantic_issues": semantic["issues"],
     }
     return summary
+
+
+def generate_summary_with_guardrail(market_state: dict, max_retries: int = 1) -> dict:
+    """Bound the entire generation and verification pipeline to 130 seconds."""
+    token = _GENERATION_DEADLINE.set(time.monotonic() + 130)
+    try:
+        return _generate_summary_with_guardrail(market_state, max_retries)
+    finally:
+        _GENERATION_DEADLINE.reset(token)

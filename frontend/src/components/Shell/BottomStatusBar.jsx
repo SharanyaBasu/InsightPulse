@@ -1,12 +1,12 @@
-import { useMarketData } from "../../context/MarketDataContext";
+import { useMarketData } from "../../context/useMarketData";
 
 export default function BottomStatusBar() {
-  const { overview, lastUpdated, loading } = useMarketData();
+  const { overview, lastUpdated, loading, error } = useMarketData();
 
   if (loading || !overview) {
     return (
       <div style={barStyle}>
-        <span style={{ color: "var(--text-mute)" }}>LOADING...</span>
+        <span style={{ color: "var(--text-mute)" }}>{error ? "DATA UNAVAILABLE" : "LOADING..."}</span>
       </div>
     );
   }
@@ -18,7 +18,7 @@ export default function BottomStatusBar() {
   const regime = overview.regime?.regime || "—";
 
   const updatedStr = lastUpdated
-    ? lastUpdated.toLocaleTimeString("en-US", { hour12: false })
+    ? lastUpdated.toLocaleString("en-US", { hour12: false })
     : "—";
 
   return (
@@ -39,7 +39,7 @@ export default function BottomStatusBar() {
           TREND: <span style={{ fontWeight: 600 }}>{s.equity_trend || "—"}</span>
         </span>
       </div>
-      <span style={{ color: "var(--text-mute)" }}>UPD {updatedStr}</span>
+      <span style={{ color: "var(--text-mute)" }}>Last checked: {updatedStr}{error ? " · Refresh failed; showing previous data" : ""}</span>
     </div>
   );
 }

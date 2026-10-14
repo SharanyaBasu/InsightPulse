@@ -6,7 +6,7 @@
  *
  * Request body (ScenarioRunRequest):
  *   fed_funds_change_bps, cpi_surprise_pct, oil_change_pct, gdp_surprise_pct,
- *   unemployment_change_pct, pmi_change, dxy_change_pct, vix_change_pct
+ *   unemployment_change_pct, pmi_change, dxy_change_pct, vix_change_points
  *
  * Response body (ScenarioRunResponse):
  *   summary, regime, confidence, asset_deltas, sector_impacts, explanation

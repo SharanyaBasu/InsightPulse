@@ -13,7 +13,7 @@ ZERO_INPUTS = {
     "unemployment_change_pct": 0,
     "pmi_change": 0,
     "dxy_change_pct": 0,
-    "vix_change_pct": 0,
+    "vix_change_points": 0,
 }
 
 
@@ -23,7 +23,7 @@ def test_map_api_inputs_to_model_shocks():
             **ZERO_INPUTS,
             "fed_funds_change_bps": -25,
             "oil_change_pct": 5,
-            "vix_change_pct": 10,
+            "vix_change_points": 10,
             "pmi_change": -2,
         }
     )
@@ -54,13 +54,13 @@ def test_run_scenario_returns_required_keys():
     assert result["confidence"] in {"Low", "Medium", "High"}
     assert "sp500" in result["asset_deltas"]
     assert "technology" in result["sector_impacts"]
-    assert "2026-06-11" in result["summary"]
+    assert result["context"]["baseline_date"] == "2026-06-11"
 
 
 def test_run_scenario_is_deterministic():
     payload = {
         **ZERO_INPUTS,
-        "vix_change_pct": 40,
+        "vix_change_points": 40,
         "oil_change_pct": 10,
     }
 
@@ -74,7 +74,7 @@ def test_risk_off_inputs_pressure_equities():
     result = run_scenario(
         {
             **ZERO_INPUTS,
-            "vix_change_pct": 80,
+            "vix_change_points": 80,
             "fed_funds_change_bps": 50,
             "unemployment_change_pct": 1.0,
             "pmi_change": -5,
@@ -139,7 +139,7 @@ def test_default_engine_is_ridge():
     result = engine.predict(ZERO_INPUTS)
 
     assert result["confidence"] in {"Low", "Medium", "High"}
-    assert "fixed" in result["summary"].lower() or "2026-06-11" in result["summary"]
+    assert result["context"]["baseline_date"] == "2026-06-11"
     assert result["asset_deltas"]["sp500"] == 0.0
 
 
@@ -149,3 +149,16 @@ def test_deterministic_rule_engine_still_available():
 
     assert result["regime"] == "Transitional"
     assert result["confidence"] == "Low"
+
+
+def test_neutral_context_and_tiny_nonzero_shock_are_distinct():
+    neutral = run_scenario(ZERO_INPUTS)
+    assert neutral['context']['neutral_inputs'] is True
+    assert neutral['context']['horizon_trading_days'] == 21
+    assert 'No shocks applied' in neutral['summary']
+    assert all(value == 0 for value in neutral['asset_deltas'].values())
+    assert all(value == 0 for value in neutral['sector_impacts'].values())
+    tiny = run_scenario({**ZERO_INPUTS, 'oil_change_pct': 0.000001})
+    assert tiny['context']['neutral_inputs'] is False
+    assert 'rounds to 0.00%' in tiny['summary']
+    assert 'No shocks applied' not in tiny['summary']

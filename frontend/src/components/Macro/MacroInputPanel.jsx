@@ -1,8 +1,8 @@
 import { useState, useCallback } from "react";
 import {
-  MACRO_INPUT_FIELDS,
   useMacroInputs,
-} from "../../context/MacroInputsContext";
+} from "../../context/useMacroInputs";
+import { MACRO_INPUT_FIELDS } from "../../context/macroInputs";
 import TerminalPanel from "../Terminal/TerminalPanel";
 
 const inputStyle = {
@@ -57,6 +57,7 @@ export default function MacroInputPanel({ embedded = false }) {
     runError,
     dirty,
     savedAt,
+    unitNotice,
   } = useMacroInputs();
   const [drafts, setDrafts] = useState({});
   const [runFlash, setRunFlash] = useState(false);
@@ -104,6 +105,7 @@ export default function MacroInputPanel({ embedded = false }) {
   const handleChange = (field, value) => {
     if (value !== "" && !PARTIAL_NUMBER.test(value)) return;
     setDrafts((prev) => ({ ...prev, [field.key]: value }));
+    setInput(field.key, parseDraft(field, value, inputs[field.key]));
   };
 
   const handleBlur = (field) => {
@@ -124,7 +126,8 @@ export default function MacroInputPanel({ embedded = false }) {
     setDrafts({});
 
     try {
-      await runScenario(effective);
+      const result = await runScenario(effective);
+      if (!result) return;
       setRunFlash(true);
       setTimeout(() => setRunFlash(false), 600);
     } catch {
@@ -134,6 +137,11 @@ export default function MacroInputPanel({ embedded = false }) {
 
   const body = (
     <>
+      {unitNotice && (
+        <p role="status" style={{ color: "var(--amber)", fontSize: "0.78rem", lineHeight: 1.5 }}>
+          {unitNotice}
+        </p>
+      )}
       <div
         style={{
           display: "grid",
@@ -151,6 +159,7 @@ export default function MacroInputPanel({ embedded = false }) {
               <span style={{ color: "var(--text-mute)" }}>({field.unit})</span>
             </span>
             <input
+              aria-describedby={`macro-help-${field.key}`}
               type="text"
               inputMode="decimal"
               value={getDraft(field)}
@@ -159,7 +168,8 @@ export default function MacroInputPanel({ embedded = false }) {
               onBlur={() => handleBlur(field)}
               style={inputStyle}
             />
-            <span style={{ fontSize: "0.65rem", color: "var(--text-mute)" }}>
+            <span id={`macro-help-${field.key}`} style={{ fontSize: "0.65rem", color: "var(--text-mute)" }}>
+              {field.example}<br />
               Range: {field.min} to {field.max} {field.unit}
             </span>
           </label>

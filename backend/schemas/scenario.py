@@ -13,7 +13,7 @@ must NOT be used for playground simulation.
 
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 # ---------------------------------------------------------------------------
@@ -22,6 +22,17 @@ from pydantic import BaseModel, Field
 
 class ScenarioRunRequest(BaseModel):
     """Macro shocks submitted by the Scenario Playground input panel."""
+
+    @model_validator(mode="before")
+    @classmethod
+    def reject_legacy_vix_units(cls, values):
+        """Reject ambiguous legacy percent inputs rather than silently ignoring them."""
+        if isinstance(values, dict) and "vix_change_pct" in values:
+            raise ValueError(
+                "vix_change_pct is no longer supported. Submit vix_change_points "
+                "in index points: VIX 20 to 25 means +5, not +25%."
+            )
+        return values
 
     fed_funds_change_bps: float = Field(
         0,
@@ -72,11 +83,11 @@ class ScenarioRunRequest(BaseModel):
         description="DXY / USD percent change.",
         examples=[1],
     )
-    vix_change_pct: float = Field(
+    vix_change_points: float = Field(
         0,
         ge=-50,
         le=100,
-        description="VIX percent change.",
+        description="VIX change in index points (20 to 25 means +5 points).",
         examples=[10],
     )
 
@@ -91,7 +102,7 @@ class ScenarioRunRequest(BaseModel):
                     "unemployment_change_pct": 0.2,
                     "pmi_change": -3,
                     "dxy_change_pct": 1,
-                    "vix_change_pct": 10,
+                    "vix_change_points": 10,
                 }
             ]
         }
@@ -130,8 +141,19 @@ class SectorProjections(BaseModel):
     consumer_discretionary: float
 
 
+class ScenarioContext(BaseModel):
+    """Baseline and horizon attached to the model result, not the current clock."""
+
+    baseline_date: str
+    horizon_trading_days: int = Field(gt=0)
+    effect_type: Literal["incremental_vs_baseline"]
+    neutral_inputs: bool
+
+
 class ScenarioRunResponse(BaseModel):
     """Simulation result consumed by ScenarioPage result panels."""
+
+    context: ScenarioContext | None = None
 
     summary: str = Field(
         ...,

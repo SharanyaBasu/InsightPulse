@@ -153,3 +153,11 @@ class CalculatedMetric(Base):
     calculation_version = Column(String)
     created_at = Column(DateTime)
     updated_at = Column(DateTime)
+
+
+class SourceObservation(Base):
+    """Latest original observation date captured before provider forward filling."""
+
+    __tablename__ = "source_observations"
+    metric = Column(String, primary_key=True)
+    observed_on = Column(Date, nullable=False)

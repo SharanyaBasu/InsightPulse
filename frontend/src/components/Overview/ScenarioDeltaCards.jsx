@@ -37,9 +37,9 @@ export default function ScenarioDeltaCards({ assets }) {
       <p style={styles.sectionLabel}>Scenario delta — asset impact</p>
       <div style={styles.grid}>
         {assets.map((a) => {
-          const isPos = a.value >= 0;
+          const isPos = a.value > 0;
           const sign = isPos ? "+" : "";
-          const color = isPos ? POS_COLOR : NEG_COLOR;
+          const color = a.value === 0 ? "var(--text-soft)" : isPos ? POS_COLOR : NEG_COLOR;
           return (
             <div key={a.label} style={styles.card}>
               <span style={styles.assetName}>{a.label}</span>

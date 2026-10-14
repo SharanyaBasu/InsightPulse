@@ -1,4 +1,4 @@
-import { useMarketData } from "../context/MarketDataContext";
+import { useMarketData } from "../context/useMarketData";
 import TerminalLoader from "../components/Terminal/TerminalLoader";
 import HeatmapGrid from "../components/Terminal/HeatmapGrid";
 

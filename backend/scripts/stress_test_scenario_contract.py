@@ -34,7 +34,7 @@ VALID = {
     "unemployment_change_pct": 0.2,
     "pmi_change": -3,
     "dxy_change_pct": 1,
-    "vix_change_pct": 10,
+    "vix_change_points": 10,
 }
 
 BOUNDS = {
@@ -45,7 +45,7 @@ BOUNDS = {
     "unemployment_change_pct": (-2, 2),
     "pmi_change": (-10, 10),
     "dxy_change_pct": (-10, 10),
-    "vix_change_pct": (-50, 100),
+    "vix_change_points": (-50, 100),
 }
 
 passed = 0
@@ -153,9 +153,9 @@ def main():
     check("extra fields still succeed (ignored)", status == 200 and ok, f"status={status} {info}")
 
     payload = dict(VALID)
-    payload["vix_change_pct"] = None
+    payload["vix_change_points"] = None
     status, body, err = post(payload)
-    check("reject null vix_change_pct", status == 422, f"status={status}")
+    check("reject null vix_change_points", status == 422, f"status={status}")
 
     n = 40
     start = time.perf_counter()

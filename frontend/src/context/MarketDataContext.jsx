@@ -1,7 +1,7 @@
-import { createContext, useContext, useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import axios from "axios";
 
-const MarketDataContext = createContext(null);
+import { MarketDataContext } from "./useMarketData";
 
 const REFRESH_INTERVAL = 5 * 60 * 1000; // 5 minutes
 
@@ -12,10 +12,13 @@ export function MarketDataProvider({ children }) {
   const [lastUpdated, setLastUpdated] = useState(null);
 
   const fetchOverview = useCallback(() => {
-    setError(null);
     axios
       .get("/api/overview")
       .then((res) => {
+        if (!res.data?.market_cards || !res.data?.macro) {
+          throw new Error("Market snapshot unavailable");
+        }
+        setError(null);
         setOverview(res.data);
         setLastUpdated(new Date());
       })
@@ -39,10 +42,4 @@ export function MarketDataProvider({ children }) {
       {children}
     </MarketDataContext.Provider>
   );
-}
-
-export function useMarketData() {
-  const ctx = useContext(MarketDataContext);
-  if (!ctx) throw new Error("useMarketData must be used within MarketDataProvider");
-  return ctx;
 }

@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
-import { useMarketData } from "../../context/MarketDataContext";
+import { connectionStatus, observationRange } from "../../context/dataFreshness";
+import { useMarketData } from "../../context/useMarketData";
 
 function getMarketSession() {
   const now = new Date();
@@ -18,7 +19,7 @@ function getMarketSession() {
 
 export default function TopStatusBar() {
   const [time, setTime] = useState(new Date());
-  const { error, lastUpdated } = useMarketData();
+  const { error, overview, loading } = useMarketData();
 
   useEffect(() => {
     const id = setInterval(() => setTime(new Date()), 1000);
@@ -26,14 +27,8 @@ export default function TopStatusBar() {
   }, []);
 
   const session = getMarketSession();
-  const freshness = lastUpdated
-    ? Math.floor((Date.now() - lastUpdated.getTime()) / 60000)
-    : null;
-  const connColor = error
-    ? "var(--red)"
-    : freshness !== null && freshness < 6
-    ? "var(--green)"
-    : "var(--amber)";
+  const status = connectionStatus({ error, overview, loading });
+  const connColor = error ? "var(--red)" : overview ? "var(--text-soft)" : "var(--amber)";
 
   return (
     <div
@@ -59,7 +54,8 @@ export default function TopStatusBar() {
       {/* Center: Market status */}
       <div style={{ display: "flex", alignItems: "center", gap: "1rem", color: "var(--text-mute)" }}>
         <span>MARKET ANALYTICS TERMINAL</span>
-        <span style={{ color: session.color }}>{session.label}</span>
+        <span style={{ color: session.color }} title="Typical US market hours; holidays are not reflected">{session.label}</span>
+        <span>Market data as of {observationRange(overview?.data_dates?.market)}</span>
       </div>
 
       {/* Right: Clock + connection */}
@@ -69,7 +65,7 @@ export default function TopStatusBar() {
         </span>
         <div style={{ display: "flex", alignItems: "center", gap: "0.3rem" }}>
           <div
-            className={!error ? "t-blink" : undefined}
+            title="API connection status; not a live-data indicator"
             style={{
               width: 6,
               height: 6,
@@ -78,7 +74,7 @@ export default function TopStatusBar() {
             }}
           />
           <span style={{ color: connColor, fontSize: "0.65rem" }}>
-            {error ? "ERR" : "LIVE"}
+            {status}
           </span>
         </div>
       </div>

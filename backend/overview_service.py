@@ -4,7 +4,9 @@ from typing import Dict, List, Any
 
 import numpy as np
 import pandas as pd
-import yfinance as yf
+from providers.yahoo_provider import download_history, extract_close
+from sqlalchemy import inspect
+from models import SourceObservation
 
 from db import SessionLocal
 from signals_engine import generate_sentiment_series, load_market_data
@@ -71,6 +73,21 @@ def sanitize(obj):
 # --------------------------------------------------------
 # Helpers
 # --------------------------------------------------------
+def observation_date(series):
+    """Return the last actual non-null daily observation, never the fetch time."""
+    if series is None or series.dropna().empty:
+        return None
+    return series.dropna().index.max().date().isoformat()
+
+
+def macro_observation_dates():
+    """Legacy forward-filled records have unknown original observation dates."""
+    with SessionLocal() as db:
+        if not inspect(db.get_bind()).has_table("source_observations"):
+            return {}
+        return {row.metric: row.observed_on.isoformat() for row in db.query(SourceObservation).all()}
+
+
 def _load_macro_df():
     session = SessionLocal()
     try:
@@ -141,10 +158,10 @@ def _classify_equity_trend(spx: pd.Series):
 def _fetch_live_ticker(ticker: str, name: str, group: str):
     """Fetch a single ticker from yfinance and return a cross-asset row dict."""
     try:
-        raw = yf.download(ticker, period="3mo", interval="1d", auto_adjust=True, progress=False)
+        raw = download_history(ticker, period="3mo", interval="1d", auto_adjust=True)
         if raw.empty:
             return None
-        close = raw["Close"].dropna()
+        close = extract_close(raw, ticker)
         if len(close) < 5:
             return None
         price = float(close.iloc[-1])
@@ -154,6 +171,7 @@ def _fetch_live_ticker(ticker: str, name: str, group: str):
             "group": group,
             "name": name,
             "symbol": ticker,
+            "observed_on": observation_date(close),
             "price": price,
             "change_1d": change_1d,
             "sparkline": sparkline,
@@ -173,6 +191,7 @@ def _build_cross_asset(market_df: pd.DataFrame, macro_daily: pd.DataFrame) -> li
             "group": group,
             "name": name,
             "symbol": symbol,
+            "observed_on": observation_date(s) if symbol in market_df.columns else None,
             "price": float(s.iloc[-1]),
             "change_1d": _pct_change(s, 1),
             "sparkline": _sparkline(s, 30),
@@ -307,6 +326,7 @@ def build_overview_snapshot(force_refresh=False):
     market_df = load_market_data()
     macro_df = _load_macro_df()
     macro_daily = macro_df.asfreq("B").ffill()
+    macro_dates = macro_observation_dates()
 
     # ------------------------
     # Cross-Asset + Correlations
@@ -329,6 +349,7 @@ def build_overview_snapshot(force_refresh=False):
         s = market_df[sym]
         cards.append({
             "symbol": sym,
+            "observed_on": observation_date(s),
             "name": name,
             "price": float(s.iloc[-1]),
             "change_1d": _pct_change(s, 1),
@@ -343,6 +364,7 @@ def build_overview_snapshot(force_refresh=False):
         t = macro_daily["ten_year_yield"]
         cards.append({
             "symbol": "dgs10",
+            "observed_on": macro_dates.get("DGS10"),
             "name": "US 10Y Yield",
             "price": float(t.iloc[-1]),
             "change_1d": _pct_change(t, 1),
@@ -374,16 +396,19 @@ def build_overview_snapshot(force_refresh=False):
 
     macro_out = {
         "cpi": {
+            "observed_on": macro_dates.get("CPI"),
             "value": latest.get("cpi"),
             "prev": prev.get("cpi"),
             "direction": _direction(latest.get("cpi"), prev.get("cpi")),
         },
         "unemployment": {
+            "observed_on": macro_dates.get("Unemployment"),
             "value": latest.get("unemployment"),
             "prev": prev.get("unemployment"),
             "direction": _direction(latest.get("unemployment"), prev.get("unemployment")),
         },
         "policy_rate": {
+            "observed_on": macro_dates.get("Fed_Funds_Rate"),
             "value": latest.get("fed_funds_rate"),
             "prev": prev.get("fed_funds_rate"),
             "direction": _direction(latest.get("fed_funds_rate"), prev.get("fed_funds_rate")),
@@ -458,6 +483,10 @@ def build_overview_snapshot(force_refresh=False):
         "cross_asset": cross_asset,
         "correlations": correlations,
         "regime": regime,
+        "data_dates": {
+            "market": {column: observation_date(market_df[column]) for column in market_df.columns if column != "id"},
+            "macro": macro_dates,
+        },
         "last_updated": pd.Timestamp.utcnow().isoformat(),
     }
 

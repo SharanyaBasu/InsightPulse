@@ -39,3 +39,7 @@ data/scenario_playground/**/*.tmp
 
 # Scenario Playground fitted research bundles and model binaries
 scenario_modeling/artifacts/
+
+# Browser test artifacts
+frontend/test-results/
+frontend/playwright-report/

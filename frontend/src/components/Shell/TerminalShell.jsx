@@ -4,7 +4,7 @@ import TopStatusBar from "./TopStatusBar";
 import NavBar from "./NavBar";
 import BottomStatusBar from "./BottomStatusBar";
 import KeyboardHelp from "./KeyboardHelp";
-import { useMarketData } from "../../context/MarketDataContext";
+import { useMarketData } from "../../context/useMarketData";
 
 export default function TerminalShell() {
   const [showHelp, setShowHelp] = useState(false);

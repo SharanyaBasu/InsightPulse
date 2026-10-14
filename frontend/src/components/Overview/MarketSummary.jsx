@@ -174,7 +174,7 @@ const REGIME_LABELS = {
 };
 
 export default function MarketSummary({ summary, loading, error, onRetry }) {
-  if (loading) {
+  if (loading && !summary) {
     return (
       <TerminalPanel title="Market Narrative" style={{ marginBottom: "0.5rem" }}>
         <LoadingState />
@@ -182,11 +182,11 @@ export default function MarketSummary({ summary, loading, error, onRetry }) {
     );
   }
 
-  if (error) {
+  if (error && !summary) {
     return (
       <TerminalPanel title="Market Narrative" style={{ marginBottom: "0.5rem" }}>
         <FallbackState
-          message="Unable to load today's market summary. Please try again shortly."
+          message={error}
           onRetry={onRetry}
         />
       </TerminalPanel>
@@ -282,6 +282,16 @@ export default function MarketSummary({ summary, loading, error, onRetry }) {
         </div>
       }
     >
+      {summary && (loading || error) && (
+        <p role="status" style={{ color: "var(--amber)", fontSize: "0.75rem" }}>
+          {loading ? "Checking for an updated summary…" : `${error} Showing the previous summary.`}
+        </p>
+      )}
+      {summary?.data_as_of && (
+        <p style={{ color: "var(--text-mute)", fontSize: "0.72rem" }}>
+          Underlying observations: {summary.data_as_of.oldest} – {summary.data_as_of.latest}
+        </p>
+      )}
       {isStructured ? (
         <>
           <div

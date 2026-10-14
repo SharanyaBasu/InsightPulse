@@ -1,9 +1,10 @@
+import { MACRO_INPUT_FIELDS } from "../context/macroInputs";
 import MacroInputPanel from "../components/Macro/MacroInputPanel";
 import TerminalPanel from "../components/Terminal/TerminalPanel";
 import ScenarioSummaryStrip from "../components/Scenario/ScenarioSummaryStrip";
 import ScenarioDeltaCards from "../components/Overview/ScenarioDeltaCards";
 import SectorHeatmap from "../components/Overview/SectorHeatmap";
-import { useMacroInputs } from "../context/MacroInputsContext";
+import { useMacroInputs } from "../context/useMacroInputs";
 import { toDeltaAssets, toHeatmapSectors } from "../mocks/scenarioResult";
 
 function ResultsPlaceholder() {
@@ -106,7 +107,7 @@ function ExplanationBox({ text }) {
 }
 
 export default function ScenarioPage() {
-  const { scenarioResult, runLoading } = useMacroInputs();
+  const { scenarioResult, runLoading, resultsStale, submittedInputs, lastRunAt, runError } = useMacroInputs();
   const hasResults = Boolean(scenarioResult);
 
   return (
@@ -154,13 +155,32 @@ export default function ScenarioPage() {
             <ResultsPlaceholder />
           ) : (
             <>
+              <div style={{ fontSize: "0.78rem", lineHeight: 1.6, marginBottom: "0.75rem" }}>
+                {scenarioResult.context && (
+                  <div style={{ padding: "0.65rem", border: "1px solid var(--panel-border)", marginBottom: "0.5rem" }}>
+                    <strong>Historical baseline: {scenarioResult.context.baseline_date}</strong><br />
+                    Horizon: {scenarioResult.context.horizon_trading_days} trading days.<br />
+                    Values show additional impact relative to baseline, using historical—not live—market conditions.
+                  </div>
+                )}
+                <div role="status" style={{ color: resultsStale || runError ? "var(--amber)" : "var(--text-soft)" }}>
+                  {runLoading ? "Running scenario… Previous results remain below." : runError ? "Latest run failed. Previous results remain below." : resultsStale ? "Inputs changed—run again to update results." : "Results match the current inputs."}
+                  {runLoading && resultsStale && " Inputs have changed since the displayed run."}
+                </div>
+                <details>
+                  <summary>Displayed run: {lastRunAt?.toLocaleString()} — view assumptions</summary>
+                  {submittedInputs && MACRO_INPUT_FIELDS.map((field) => (
+                    <div key={field.key}>{field.label}: {submittedInputs[field.key]} {field.unit}</div>
+                  ))}
+                </details>
+              </div>
               <ScenarioSummaryStrip summary={scenarioResult.summary} />
               <RegimeConfidenceRow
                 regime={scenarioResult.regime}
                 confidence={scenarioResult.confidence}
               />
               <ScenarioDeltaCards assets={toDeltaAssets(scenarioResult.asset_deltas)} />
-              <SectorHeatmap sectors={toHeatmapSectors(scenarioResult.sector_impacts)} />
+              <SectorHeatmap scenario horizon={scenarioResult.context?.horizon_trading_days} sectors={toHeatmapSectors(scenarioResult.sector_impacts)} />
               <ExplanationBox text={scenarioResult.explanation} />
             </>
           )}
