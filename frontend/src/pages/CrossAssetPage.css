@@ -271,7 +271,7 @@
 }
 
 .correlation-swatch.is-comparison {
-  background: var(--cyan);
+  background: repeating-linear-gradient(to right, var(--cyan) 0 6px, transparent 6px 9px);
 }
 
 .correlation-legend .is-up {
@@ -337,9 +337,8 @@
     grid-column: 2;
   }
 
-  .correlation-chart-header > span {
-    display: none;
-  }
+  .correlation-chart-header { flex-wrap: wrap; }
+  .correlation-chart-header > span { text-align: left; }
 
   .correlation-chart {
     height: 340px;
@@ -382,3 +381,7 @@
     grid-column: 1;
   }
 }
+
+.cross-asset-header h1 { font-family: system-ui, sans-serif; }
+.correlation-select > span, .correlation-result span, .correlation-result small, .correlation-chart-header p, .correlation-chart-header > span, .correlation-legend p { font-size: 0.72rem; }
+.correlation-tooltip { background: var(--bg); border-radius: var(--radius); }

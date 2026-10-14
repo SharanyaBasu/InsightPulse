@@ -5,7 +5,7 @@ export default function BottomStatusBar() {
 
   if (loading || !overview) {
     return (
-      <div style={barStyle}>
+      <div className="bottom-status" style={barStyle}>
         <span style={{ color: "var(--text-mute)" }}>{error ? "DATA UNAVAILABLE" : "LOADING..."}</span>
       </div>
     );
@@ -22,7 +22,7 @@ export default function BottomStatusBar() {
     : "—";
 
   return (
-    <div style={barStyle}>
+    <div className="bottom-status" style={barStyle}>
       <div style={{ display: "flex", gap: "1.5rem", alignItems: "center" }}>
         <span>
           SENTIMENT:{" "}

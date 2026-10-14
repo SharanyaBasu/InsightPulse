@@ -1,3 +1,4 @@
+import PageHeader from "../components/Terminal/PageHeader";
 import { MACRO_INPUT_FIELDS } from "../context/macroInputs";
 import MacroInputPanel from "../components/Macro/MacroInputPanel";
 import TerminalPanel from "../components/Terminal/TerminalPanel";
@@ -21,7 +22,7 @@ function ResultsPlaceholder() {
         fontSize: "0.82rem",
         textAlign: "center",
         padding: "1.5rem 1rem",
-        opacity: 0.55,
+
       }}
     >
       <div style={{ fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", fontSize: "0.7rem" }}>
@@ -112,31 +113,7 @@ export default function ScenarioPage() {
 
   return (
     <div>
-      <div style={{ marginBottom: "0.75rem" }}>
-        <h1
-          style={{
-            fontSize: "1.3rem",
-            fontWeight: 700,
-            color: "var(--green)",
-            letterSpacing: "0.04em",
-            textTransform: "uppercase",
-          }}
-        >
-          Scenario Playground
-        </h1>
-        <p
-          style={{
-            margin: "0.35rem 0 0 0",
-            color: "var(--text-soft)",
-            fontSize: "0.82rem",
-            maxWidth: "65ch",
-            lineHeight: 1.5,
-          }}
-        >
-          Test &quot;what if&quot; macro scenarios. Adjust the inputs, click Run Scenario,
-          and review the projected market impact.
-        </p>
-      </div>
+      <PageHeader eyebrow="Scenario analysis" title="Scenario Playground" description='Test "what if" macro scenarios. Adjust the inputs, run a scenario, and review the projected market impact.' />
 
       <div className="scenario-grid">
         <TerminalPanel title="Input Panel">
@@ -145,7 +122,7 @@ export default function ScenarioPage() {
 
         <TerminalPanel
           title="Results"
-          style={{ opacity: hasResults || runLoading ? 1 : 0.7 }}
+
         >
           {runLoading && !hasResults ? (
             <div style={{ color: "var(--text-mute)", padding: "2rem", textAlign: "center", fontSize: "0.85rem" }}>

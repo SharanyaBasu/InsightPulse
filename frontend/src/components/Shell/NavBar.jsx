@@ -15,7 +15,7 @@ export default function NavBar({ onShowHelp }) {
   useEffect(() => {
     function handleKey(e) {
       // Don't intercept when typing in inputs
-      if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") return;
+      if (e.ctrlKey || e.metaKey || e.altKey || e.target.closest("input, textarea, select, [contenteditable], dialog")) return;
 
       const tab = TABS.find((t) => t.key === e.key);
       if (tab) {
@@ -33,35 +33,13 @@ export default function NavBar({ onShowHelp }) {
   }, [navigate, onShowHelp]);
 
   return (
-    <nav
-      style={{
-        display: "flex",
-        alignItems: "center",
-        gap: 0,
-        background: "#0d0d0d",
-        borderBottom: "1px solid var(--panel-border)",
-        fontSize: "0.72rem",
-        padding: "0 0.4rem",
-      }}
-    >
+    <nav className="main-nav" aria-label="Main navigation">
       {TABS.map((tab) => (
         <NavLink
           key={tab.key}
           to={tab.to}
           end={tab.to === "/"}
-          style={({ isActive }) => ({
-            display: "flex",
-            alignItems: "center",
-            gap: "0.3rem",
-            padding: "0.45rem 0.8rem",
-            color: isActive ? "#000" : "var(--text-soft)",
-            background: isActive ? "var(--green)" : "transparent",
-            fontWeight: isActive ? 700 : 500,
-            textDecoration: "none",
-            borderRight: "1px solid var(--panel-border)",
-            transition: "background 0.1s, color 0.1s",
-            letterSpacing: "0.04em",
-          })}
+          className={({ isActive }) => isActive ? "nav-link active" : "nav-link"}
         >
           <span className="t-kbd">
             {tab.key}
@@ -70,9 +48,7 @@ export default function NavBar({ onShowHelp }) {
         </NavLink>
       ))}
 
-      <div style={{ marginLeft: "auto", padding: "0 0.8rem", color: "var(--text-mute)", fontSize: "0.65rem" }}>
-        Press <span className="t-kbd">?</span> for shortcuts
-      </div>
+      <button className="help-button" onClick={onShowHelp} aria-label="Keyboard shortcuts"><span className="t-kbd">?</span> Shortcuts</button>
     </nav>
   );
 }

@@ -48,6 +48,7 @@ export default function RegimeLabel({ regime }) {
         {regime.description}
       </p>
 
+      <details className="narrative-details"><summary>View regime signals</summary>
       {/* Signal grid */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "0.8rem", borderTop: "1px solid var(--panel-border)", paddingTop: "0.6rem" }}>
         {vix && vix.value != null && (
@@ -71,6 +72,7 @@ export default function RegimeLabel({ regime }) {
           </SignalBlock>
         )}
       </div>
+      </details>
     </div>
   );
 }

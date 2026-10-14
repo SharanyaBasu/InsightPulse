@@ -1,3 +1,5 @@
+import ChartControls from "../Terminal/ChartControls";
+import { windowRows, assetUnit } from "../../context/chartData";
 import { useMemo, useState } from "react";
 import {
   CartesianGrid,
@@ -10,7 +12,7 @@ import {
   YAxis,
 } from "recharts";
 
-const SESSION_COUNT = 90;
+
 
 const ASSET_META = {
   sp500: { label: "S&P 500", group: "Equities" },
@@ -105,8 +107,8 @@ function ComparisonTooltip({ active, payload, label, assetA, assetB }) {
       {rows.map(({ key, meta, color }) => (
         <div className="correlation-tooltip-row" key={key}>
           <span className="correlation-tooltip-name" style={{ color }}>{meta.label}</span>
-          <strong>{point?.[`${key}Indexed`]?.toFixed(2) ?? "—"}</strong>
-          <span>{formatRawValue(point?.[`${key}Raw`])} raw</span>
+          <strong>{point?.[`${key}Indexed`]?.toFixed(2) ?? "—"} indexed</strong>
+          <span>{formatRawValue(point?.[`${key}Raw`])} {assetUnit(meta.key)}</span>
         </div>
       ))}
     </div>
@@ -138,6 +140,7 @@ function AssetSelect({ id, label, value, onChange, assets, disabledValue }) {
 }
 
 export default function CrossAssetCorrelation({ history }) {
+  const [period, setPeriod] = useState(63);
   const [selectedA, setSelectedA] = useState("sp500");
   const [selectedB, setSelectedB] = useState("gold");
 
@@ -177,8 +180,8 @@ export default function CrossAssetCorrelation({ history }) {
     if (!assetAKey || !assetBKey || !Array.isArray(history)) return null;
 
     const overlapping = history
-      .filter((row) => isFiniteNumber(row?.[assetAKey]) && isFiniteNumber(row?.[assetBKey]))
-      .slice(-SESSION_COUNT)
+      .filter((row) => isFiniteNumber(row?.[assetAKey]) && isFiniteNumber(row?.[assetBKey]) && Number(row[assetAKey]) > 0 && Number(row[assetBKey]) > 0)
+      .slice(period ? -period : 0)
       .map((row) => ({
         date: row.date,
         assetARaw: Number(row[assetAKey]),
@@ -213,7 +216,7 @@ export default function CrossAssetCorrelation({ history }) {
       changeB: data.at(-1).assetBIndexed - 100,
       sessionCount: overlapping.length,
     };
-  }, [assetAKey, assetBKey, history]);
+  }, [assetAKey, assetBKey, history, period]);
 
   if (assets.length < 2) {
     return (
@@ -228,7 +231,12 @@ export default function CrossAssetCorrelation({ history }) {
     return (
       <div className="cross-asset-state" role="status">
         <strong>NO OVERLAPPING HISTORY</strong>
-        <span>Choose another asset pair to calculate a correlation.</span>
+        <span>Choose another asset pair or a longer period to calculate a correlation.</span>
+        <div className="correlation-pair-controls">
+          <AssetSelect id="empty-asset-a" label="Primary asset" value={assetAKey} onChange={setSelectedA} assets={assets} disabledValue={assetBKey} />
+          <AssetSelect id="empty-asset-b" label="Comparison asset" value={assetBKey} onChange={setSelectedB} assets={assets} disabledValue={assetAKey} />
+        </div>
+        <ChartControls value={period} onChange={setPeriod} rows={windowRows(history || [], period)} />
       </div>
     );
   }
@@ -251,6 +259,8 @@ export default function CrossAssetCorrelation({ history }) {
         </div>
       </header>
 
+      <ChartControls value={period} onChange={setPeriod} rows={comparison.data} />
+      <p className="muted">Windows use up to 21, 63 or 252 shared observations. Indexed levels are relative to 100; they are not raw prices.</p>
       <section className="correlation-workspace" aria-labelledby="correlation-chart-title">
         <div className="correlation-toolbar">
           <div className="correlation-pair-controls">
@@ -299,7 +309,7 @@ export default function CrossAssetCorrelation({ history }) {
               <XAxis
                 dataKey="date"
                 tickFormatter={(value) => formatDate(value).replace(/, \d{4}/, "")}
-                tick={{ fontSize: 10, fill: "#787878", fontFamily: "inherit" }}
+                tick={{ fontSize: 11, fill: "var(--text-mute)", fontFamily: "inherit" }}
                 tickLine={false}
                 axisLine={{ stroke: "var(--panel-border)" }}
                 minTickGap={48}
@@ -307,7 +317,7 @@ export default function CrossAssetCorrelation({ history }) {
               <YAxis
                 domain={["auto", "auto"]}
                 tickFormatter={(value) => value.toFixed(0)}
-                tick={{ fontSize: 10, fill: "#787878", fontFamily: "inherit" }}
+                tick={{ fontSize: 11, fill: "var(--text-mute)", fontFamily: "inherit" }}
                 tickLine={false}
                 axisLine={false}
                 width={38}
@@ -332,6 +342,7 @@ export default function CrossAssetCorrelation({ history }) {
                 dataKey="assetBIndexed"
                 name={assetB.label}
                 stroke="var(--cyan)"
+                strokeDasharray="7 4"
                 strokeWidth={2}
                 dot={false}
                 activeDot={{ r: 4, fill: "var(--cyan)", stroke: "var(--bg)", strokeWidth: 2 }}

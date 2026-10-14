@@ -31,7 +31,7 @@ export default function TopStatusBar() {
   const connColor = error ? "var(--red)" : overview ? "var(--text-soft)" : "var(--amber)";
 
   return (
-    <div
+    <div className="top-status"
       style={{
         display: "flex",
         alignItems: "center",

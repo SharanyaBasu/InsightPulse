@@ -1,8 +1,8 @@
 export default function MacroChips({ macro }) {
   const entries = [
-    ["CPI", macro.cpi.value, macro.cpi.direction, macro.cpi.observed_on],
-    ["UNEMP", macro.unemployment.value, macro.unemployment.direction, macro.unemployment.observed_on],
-    ["RATE", macro.policy_rate.value, macro.policy_rate.direction, macro.policy_rate.observed_on],
+    ["CPI (index)", macro.cpi?.value, macro.cpi?.direction, macro.cpi?.observed_on],
+    ["UNEMP (%)", macro.unemployment?.value, macro.unemployment?.direction, macro.unemployment?.observed_on],
+    ["RATE (%)", macro.policy_rate?.value, macro.policy_rate?.direction, macro.policy_rate?.observed_on],
   ];
 
   const arrow = (d) => (d === "up" ? "▲" : d === "down" ? "▼" : "—");

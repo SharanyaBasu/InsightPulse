@@ -131,7 +131,7 @@ function ParagraphFallback({ text }) {
 
 function LoadingState() {
   return (
-    <div style={{ color: "var(--text-mute)", fontSize: "0.8rem", lineHeight: 1.6 }}>
+    <div role="status" style={{ color: "var(--text-mute)", fontSize: "0.8rem", lineHeight: 1.6 }}>
       <span style={{ color: "var(--amber)" }}>{">"}</span> Generating market summary…
     </div>
   );
@@ -176,7 +176,7 @@ const REGIME_LABELS = {
 export default function MarketSummary({ summary, loading, error, onRetry }) {
   if (loading && !summary) {
     return (
-      <TerminalPanel title="Market Narrative" style={{ marginBottom: "0.5rem" }}>
+      <TerminalPanel title="Market takeaway" className="takeaway-panel" style={{ marginBottom: "0.5rem" }}>
         <LoadingState />
       </TerminalPanel>
     );
@@ -184,7 +184,7 @@ export default function MarketSummary({ summary, loading, error, onRetry }) {
 
   if (error && !summary) {
     return (
-      <TerminalPanel title="Market Narrative" style={{ marginBottom: "0.5rem" }}>
+      <TerminalPanel title="Market takeaway" className="takeaway-panel" style={{ marginBottom: "0.5rem" }}>
         <FallbackState
           message={error}
           onRetry={onRetry}
@@ -201,7 +201,7 @@ export default function MarketSummary({ summary, loading, error, onRetry }) {
 
   if (!isStructured && !paragraphText) {
     return (
-      <TerminalPanel title="Market Narrative" style={{ marginBottom: "0.5rem" }}>
+      <TerminalPanel title="Market takeaway" className="takeaway-panel" style={{ marginBottom: "0.5rem" }}>
         <FallbackState
           message="No daily summary available yet."
           onRetry={onRetry}
@@ -235,7 +235,7 @@ export default function MarketSummary({ summary, loading, error, onRetry }) {
 
   return (
     <TerminalPanel
-      title="Market Narrative"
+      title="Market takeaway" className="takeaway-panel"
       style={{ marginBottom: "0.5rem" }}
       headerRight={
         <div style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
@@ -304,7 +304,7 @@ export default function MarketSummary({ summary, loading, error, onRetry }) {
             <div
               style={{
                 color: "var(--text)",
-                fontSize: "0.9rem",
+                fontSize: "clamp(1.2rem, 2vw, 1.7rem)",
                 fontWeight: 700,
                 lineHeight: 1.45,
               }}
@@ -332,10 +332,15 @@ export default function MarketSummary({ summary, loading, error, onRetry }) {
             accent="var(--green)"
             paragraph
           />
-          <BulletSection title="Key Changes" items={summary.key_changes} accent="var(--cyan)" />
-          <BulletSection title="Risks to Watch" items={summary.risks_to_watch} accent="var(--red)" />
-          <MoodStrip mood={summary.mood_5d} />
-          <BulletSection title="Caveats" items={summary.limitations} accent="var(--text-mute)" />
+          <details className="narrative-details">
+            <summary>Read the briefing · key changes, risks & caveats</summary>
+            <div className="briefing-grid">
+              <BulletSection title="Key Changes" items={summary.key_changes} accent="var(--text-soft)" />
+              <BulletSection title="Risks to Watch" items={summary.risks_to_watch} accent="var(--text-soft)" />
+            </div>
+            <MoodStrip mood={summary.mood_5d} />
+            <BulletSection title="Caveats" items={summary.limitations} accent="var(--text-mute)" />
+          </details>
         </>
       ) : (
         <ParagraphFallback text={paragraphText} />

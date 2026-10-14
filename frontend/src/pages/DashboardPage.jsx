@@ -1,8 +1,12 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { useMarketData } from "../context/useMarketData";
 import useAssetHistory from "../hooks/useAssetHistory";
+import useDailySummary from "../hooks/useDailySummary";
 import TerminalLoader from "../components/Terminal/TerminalLoader";
 import TerminalPanel from "../components/Terminal/TerminalPanel";
+import PageHeader from "../components/Terminal/PageHeader";
+import DataState from "../components/Terminal/DataState";
 import ChartModal from "../components/Terminal/ChartModal";
 import MarketSummary from "../components/Overview/MarketSummary";
 import MarketCard from "../components/Overview/MarketCard";
@@ -12,247 +16,41 @@ import MacroChips from "../components/Overview/MacroChips";
 import CorrelationMonitor from "../components/Overview/CorrelationMonitor";
 import RegionTile from "../components/Overview/RegionTile";
 import SectorTile from "../components/Overview/SectorTile";
-import useDailySummary from "../hooks/useDailySummary";
 
 export default function DashboardPage() {
-  const { overview, loading } = useMarketData();
-  const { summary, loading: summaryLoading, error: summaryError, refresh: refreshSummary } =
-    useDailySummary();
+  const { overview, loading, error, refresh, refreshing } = useMarketData();
+  const { summary, loading: summaryLoading, error: summaryError, refresh: refreshSummary } = useDailySummary();
   const [selectedAsset, setSelectedAsset] = useState(null);
-  const { data: chartData } = useAssetHistory(selectedAsset?.symbol);
-
+  const chart = useAssetHistory(selectedAsset?.symbol);
   if (loading) return <TerminalLoader />;
-  if (!overview)
-    return (
-      <div style={{ padding: "1rem", color: "var(--red)" }}>
-        ERROR: No data available
-      </div>
-    );
-
-  const s = overview.sentiment || {};
-  const scoreColor =
-    s.score > 0
-      ? "var(--green)"
-      : s.score < 0
-        ? "var(--red)"
-        : "var(--text-soft)";
-
-  // Top 8 movers from cross_asset by absolute 1D change
-  const topMovers = overview.cross_asset
-    ? [...overview.cross_asset]
-        .filter((a) => a.change_1d != null)
-        .sort((a, b) => Math.abs(b.change_1d) - Math.abs(a.change_1d))
-        .slice(0, 8)
-    : [];
-
-  return (
-    <div>
-      {/* Sentiment Banner */}
-      <TerminalPanel title="Sentiment" style={{ marginBottom: "0.5rem" }}>
-        <div
-          style={{
-            display: "flex",
-            alignItems: "baseline",
-            gap: "2rem",
-            flexWrap: "wrap",
-          }}
-        >
-          <div>
-            <span
-              style={{ color: scoreColor, fontSize: "1.6rem", fontWeight: 700 }}
-            >
-              {s.label}
-            </span>
-            <span
-              style={{
-                color: scoreColor,
-                fontSize: "1.1rem",
-                marginLeft: "0.6rem",
-              }}
-            >
-              {s.score != null
-                ? (s.score >= 0 ? "+" : "") + s.score.toFixed(2)
-                : ""}
-            </span>
-          </div>
-          <div style={{ fontSize: "0.85rem", color: "var(--text-soft)" }}>
-            Equity Trend:{" "}
-            <span style={{ fontWeight: 600, color: "var(--text)" }}>
-              {s.equity_trend}
-            </span>
-          </div>
-          <div style={{ fontSize: "0.85rem", color: "var(--text-soft)" }}>
-            Drivers:{" "}
-            <span style={{ color: "var(--text)" }}>
-              {s.drivers?.join(", ")}
-            </span>
-          </div>
-        </div>
+  if (!overview) return <DataState error title="Market snapshot unavailable" message="We couldn't load the dashboard. Check your connection and try again." onRetry={refresh} loading={refreshing} />;
+  const sentiment = overview.sentiment || {};
+  const movers = [...(overview.cross_asset || [])].filter(asset => asset.change_1d != null).sort((a, b) => Math.abs(b.change_1d) - Math.abs(a.change_1d)).slice(0, 6);
+  return <div className="page-stack">
+    <PageHeader eyebrow="Market intelligence" title="The market, in perspective." description="Start with the takeaway. Explore the moves behind it."><Link className="ui-button" to="/scenario">Test a scenario ↗</Link></PageHeader>
+    {error && <DataState error title="Refresh failed" message="Showing the previous market snapshot." onRetry={refresh} loading={refreshing} />}
+    <div className="overview-lead">
+      <MarketSummary summary={summary} loading={summaryLoading} error={summaryError} onRetry={refreshSummary} />
+      <TerminalPanel title="Market pulse" className="pulse-panel">
+        <span className="eyebrow">Sentiment</span><p className="pulse-label">{sentiment.label || "Unavailable"}</p>
+        <p className="muted">Score <strong>{sentiment.score?.toFixed(2) ?? "—"}</strong> · Equity trend: {sentiment.equity_trend || "Unavailable"}</p>
+        <p className="pulse-drivers">{sentiment.drivers?.join(" · ") || "No sentiment drivers available."}</p>
+        <div className="pulse-regime"><h3>Macro regime</h3>{overview.regime ? <RegimeLabel regime={overview.regime} /> : <p className="muted">Regime data unavailable.</p>}</div>
       </TerminalPanel>
-
-      {/* LLM daily market summary */}
-      <MarketSummary
-        summary={summary}
-        loading={summaryLoading}
-        error={summaryError}
-        onRetry={refreshSummary}
-      />
-
-      {/* Market Cards Strip */}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(3, 1fr)",
-          gap: "0.4rem",
-          marginBottom: "0.5rem",
-        }}
-      >
-        {overview.market_cards?.map((card) => (
-          <MarketCard
-            key={card.symbol}
-            card={card}
-            onClick={() => setSelectedAsset(card)}
-          />
-        ))}
-      </div>
-
-      {/* Two-column: Regime + Top Movers */}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "1fr 1fr",
-          gap: "0.5rem",
-        }}
-      >
-        {/* Regime */}
-        {overview.regime && (
-          <TerminalPanel title="Macro Regime">
-            <RegimeLabel regime={overview.regime} />
-          </TerminalPanel>
-        )}
-
-        {/* Top Movers */}
-        <TerminalPanel title="Top Movers (1D)">
-          {topMovers.map((asset) => {
-            const color =
-              asset.change_1d > 0
-                ? "var(--green)"
-                : asset.change_1d < 0
-                  ? "var(--red)"
-                  : "var(--text-soft)";
-            return (
-              <div
-                key={asset.symbol || asset.name}
-                onClick={() => setSelectedAsset(asset)}
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  padding: "0.3rem 0",
-                  borderBottom: "1px solid var(--panel-border)",
-                  fontSize: "0.85rem",
-                  cursor: "pointer",
-                }}
-              >
-                <span style={{ color: "var(--text)", fontWeight: 600 }}>
-                  {asset.name}
-                </span>
-                <span
-                  style={{
-                    color,
-                    fontWeight: 600,
-                    fontVariantNumeric: "tabular-nums",
-                  }}
-                >
-                  {asset.change_1d > 0 ? "+" : ""}
-                  {asset.change_1d.toFixed(2)}%
-                </span>
-              </div>
-            );
-          })}
-        </TerminalPanel>
-      </div>
-
-      {/* Rates + Macro */}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "1fr 1fr",
-          gap: "0.5rem",
-          marginTop: "0.5rem",
-        }}
-      >
-        {overview.yield && (
-          <TerminalPanel title="Rates & Curve">
-            <YieldPanel yieldData={overview.yield} />
-          </TerminalPanel>
-        )}
-        {overview.macro && (
-          <TerminalPanel title="Macro">
-            <MacroChips macro={overview.macro} />
-          </TerminalPanel>
-        )}
-      </div>
-
-      {/* Cross-Asset Correlations */}
-      {overview.correlations?.length > 0 && (
-        <TerminalPanel
-          title="Cross-Asset Correlations"
-          style={{ marginTop: "0.5rem" }}
-        >
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
-              gap: "0.5rem",
-            }}
-          >
-            <CorrelationMonitor pairs={overview.correlations} />
-          </div>
-        </TerminalPanel>
-      )}
-
-      {/* Regions */}
-      {overview.regions?.length > 0 && (
-        <TerminalPanel title="Regions" style={{ marginTop: "0.5rem" }}>
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
-              gap: "0.4rem",
-            }}
-          >
-            {overview.regions.map((r) => (
-              <RegionTile key={r.symbol} tile={r} />
-            ))}
-          </div>
-        </TerminalPanel>
-      )}
-
-      {/* Sectors */}
-      {overview.sectors?.length > 0 && (
-        <TerminalPanel title="Sectors" style={{ marginTop: "0.5rem" }}>
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
-              gap: "0.4rem",
-            }}
-          >
-            {overview.sectors.map((s) => (
-              <SectorTile key={s.symbol} tile={s} />
-            ))}
-          </div>
-        </TerminalPanel>
-      )}
-
-      {/* Chart Modal */}
-      {selectedAsset && chartData && (
-        <ChartModal
-          asset={selectedAsset}
-          data={chartData}
-          onClose={() => setSelectedAsset(null)}
-        />
-      )}
     </div>
-  );
+    <div className="section-heading"><h2>Market snapshot</h2><span>Daily moves · Select a market to explore</span></div>
+    {overview.market_cards?.length ? <div className="market-grid">{overview.market_cards.map(card => <MarketCard key={card.symbol} card={card} onClick={() => setSelectedAsset(card)} />)}</div> : <DataState title="No market quotes" message="Quotes will appear when the market feed has observations." />}
+    <div className="section-heading"><h2>Behind the moves</h2><span>Macro context & market breadth</span></div>
+    <div className="dashboard-grid">
+      <TerminalPanel title="Largest daily moves">{movers.length ? movers.map(asset => <button className="mover-row" key={asset.symbol || asset.name} onClick={() => setSelectedAsset(asset)}><span>{asset.name}</span><strong style={{ color: asset.change_1d > 0 ? "var(--green)" : asset.change_1d < 0 ? "var(--red)" : "var(--text-soft)" }}>{asset.change_1d > 0 ? "+" : ""}{asset.change_1d.toFixed(2)}% <span aria-hidden="true">↗</span></strong></button>) : <DataState title="No daily movers available" />}</TerminalPanel>
+      <TerminalPanel title="Rates & curve">{overview.yield ? <YieldPanel yieldData={overview.yield} /> : <DataState title="Rates unavailable" />}</TerminalPanel>
+      <TerminalPanel title="Macro indicators">{overview.macro ? <MacroChips macro={overview.macro} /> : <DataState title="Macro indicators unavailable" />}</TerminalPanel>
+      <TerminalPanel title="Cross-asset relationships" headerRight={<Link to="/cross-asset">Explore ↗</Link>}>{overview.correlations?.length ? <CorrelationMonitor pairs={overview.correlations} /> : <DataState title="No correlations available" />}</TerminalPanel>
+    </div>
+    <TerminalPanel title="Regional performance · 1M" headerRight={<Link to="/sectors">View breadth ↗</Link>}>
+      {overview.regions?.length ? <div className="tile-grid">{overview.regions.map(tile => <RegionTile key={tile.symbol} tile={tile} />)}</div> : <DataState title="Regional data unavailable" />}
+    </TerminalPanel>
+    <TerminalPanel title="Sector performance · 1M">{overview.sectors?.length ? <div className="tile-grid">{overview.sectors.map(tile => <SectorTile key={tile.symbol} tile={tile} />)}</div> : <DataState title="Sector data unavailable" />}</TerminalPanel>
+    {selectedAsset && <ChartModal key={selectedAsset.symbol} asset={selectedAsset} {...chart} onRetry={chart.refresh} onClose={() => setSelectedAsset(null)} />}
+  </div>;
 }

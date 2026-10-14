@@ -16,7 +16,7 @@ export default function SectorTile({ tile }) {
         {tile.sector}
       </div>
       <div style={{ fontSize: "0.95rem", fontWeight: 700, color, marginTop: "0.2rem", fontVariantNumeric: "tabular-nums" }}>
-        {c > 0 ? "+" : ""}{c.toFixed(2)}%
+        {c > 0 ? "+" : ""}{c == null ? "Unavailable" : c.toFixed(2) + "%"}
       </div>
     </div>
   );

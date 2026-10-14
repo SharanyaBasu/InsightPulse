@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import axios from "axios";
 
 import { MarketDataContext } from "./useMarketData";
@@ -11,10 +11,18 @@ export function MarketDataProvider({ children }) {
   const [error, setError] = useState(null);
   const [lastUpdated, setLastUpdated] = useState(null);
 
+  const [refreshing, setRefreshing] = useState(false);
+  const request = useRef(null);
+
   const fetchOverview = useCallback(() => {
+    request.current?.abort();
+    const controller = new AbortController();
+    request.current = controller;
+    setRefreshing(true);
     axios
-      .get("/api/overview")
+      .get("/api/overview", { signal: controller.signal, timeout: 30000 })
       .then((res) => {
+        if (controller.signal.aborted) return;
         if (!res.data?.market_cards || !res.data?.macro) {
           throw new Error("Market snapshot unavailable");
         }
@@ -23,21 +31,21 @@ export function MarketDataProvider({ children }) {
         setLastUpdated(new Date());
       })
       .catch((err) => {
-        console.error("Failed to fetch overview:", err);
+        if (controller.signal.aborted) return;
         setError(err);
       })
-      .finally(() => setLoading(false));
+      .finally(() => { if (!controller.signal.aborted) { setLoading(false); setRefreshing(false); } });
   }, []);
 
   useEffect(() => {
     fetchOverview();
     const id = setInterval(fetchOverview, REFRESH_INTERVAL);
-    return () => clearInterval(id);
+    return () => { clearInterval(id); request.current?.abort(); };
   }, [fetchOverview]);
 
   return (
     <MarketDataContext.Provider
-      value={{ overview, loading, error, lastUpdated, refresh: fetchOverview }}
+      value={{ overview, loading, error, refreshing, lastUpdated, refresh: fetchOverview }}
     >
       {children}
     </MarketDataContext.Provider>

@@ -24,6 +24,7 @@ test.beforeEach(async ({ page }) => {
 });
 
 test('neutral rendering, historical context and edits before blur', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
   await page.getByRole('button', { name: 'RUN SCENARIO', exact: true }).click();
   await expect(page.getByText(neutral.summary)).toBeVisible();
   await expect(page.getByText('Historical baseline: 2026-06-11')).toBeVisible();
@@ -35,6 +36,7 @@ test('neutral rendering, historical context and edits before blur', async ({ pag
   await oil.fill('0');
   await expect(page.getByRole('status')).toContainText('Results match the current inputs');
   await expect(page.locator('main')).not.toContainText('NaN');
+  expect(await page.locator('main').evaluate(el => el.scrollWidth <= el.clientWidth + 1)).toBe(true);
   await expect(page.locator('main svg rect').first()).toHaveCSS('fill', 'rgb(52, 59, 70)');
 });
 

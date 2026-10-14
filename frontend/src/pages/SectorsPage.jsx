@@ -1,44 +1,15 @@
 import { useMarketData } from "../context/useMarketData";
 import TerminalLoader from "../components/Terminal/TerminalLoader";
+import TerminalPanel from "../components/Terminal/TerminalPanel";
+import PageHeader from "../components/Terminal/PageHeader";
+import DataState from "../components/Terminal/DataState";
 import HeatmapGrid from "../components/Terminal/HeatmapGrid";
-
 export default function SectorsPage() {
-  const { overview, loading } = useMarketData();
-
+  const { overview, loading, error, refresh, refreshing } = useMarketData();
   if (loading) return <TerminalLoader />;
-  if (!overview) return <div style={{ color: "var(--red)", padding: "1rem" }}>NO DATA</div>;
-
-  return (
-    <div>
-      {/* Regions */}
-      <div style={{ marginBottom: "1rem" }}>
-        <div style={{ fontSize: "0.8rem", color: "var(--text-mute)", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: "0.5rem", fontWeight: 600 }}>
-          Regional Performance (1M)
-        </div>
-        {overview.regions && (
-          <HeatmapGrid
-            items={overview.regions}
-            labelKey="region"
-            valueKey="change_1m"
-            columns={Math.min(overview.regions.length, 4)}
-          />
-        )}
-      </div>
-
-      {/* Sectors */}
-      <div>
-        <div style={{ fontSize: "0.8rem", color: "var(--text-mute)", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: "0.5rem", fontWeight: 600 }}>
-          Sector Rotation (1M)
-        </div>
-        {overview.sectors && (
-          <HeatmapGrid
-            items={overview.sectors}
-            labelKey="sector"
-            valueKey="change_1m"
-            columns={5}
-          />
-        )}
-      </div>
-    </div>
-  );
+  return <div className="page-stack">
+    <PageHeader eyebrow="Market breadth" title="Sectors & regions" description="One-month performance. Signed returns show direction; shading shows the size of the move." />
+    {error && <DataState error title="Market snapshot unavailable" message={overview ? "Showing the previous snapshot." : "Try again to load market performance."} onRetry={refresh} loading={refreshing} />}
+    {overview && [["Regional performance · 1M", "regions", "region", 4], ["Sector rotation · 1M", "sectors", "sector", 5]].map(([title, key, label, columns]) => <TerminalPanel title={title} key={key}>{overview[key]?.length ? <HeatmapGrid items={overview[key]} labelKey={label} valueKey="change_1m" columns={columns} /> : <DataState title={`No ${key} data available`} />}</TerminalPanel>)}
+  </div>;
 }

@@ -15,10 +15,10 @@ export default function HeatmapGrid({ items, labelKey, valueKey, columns = 5 }) 
   }
 
   return (
-    <div
+    <div className="heatmap-grid"
       style={{
         display: "grid",
-        gridTemplateColumns: `repeat(${columns}, 1fr)`,
+        "--heatmap-columns": Math.max(1, columns),
         gap: "3px",
       }}
     >

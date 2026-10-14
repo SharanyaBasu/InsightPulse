@@ -1,6 +1,6 @@
 export default function TerminalLoader({ message = "LOADING DATA" }) {
   return (
-    <div
+    <div role="status" aria-live="polite"
       style={{
         display: "flex",
         alignItems: "center",

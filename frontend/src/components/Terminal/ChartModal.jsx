@@ -1,153 +1,29 @@
-import { useEffect } from "react";
-import { AreaChart, Area, XAxis, YAxis, ResponsiveContainer, Tooltip, CartesianGrid, ReferenceLine } from "recharts";
+import { useState } from "react";
+import { AreaChart, Area, XAxis, YAxis, ResponsiveContainer, Tooltip, CartesianGrid } from "recharts";
+import Dialog from "./Dialog";
+import DataState from "./DataState";
+import ChartControls from "./ChartControls";
+import ChartTooltip from "./ChartTooltip";
+import { windowRows, assetUnit, shortDate, numberLabel } from "../../context/chartData";
 
-function ChartTooltip({ active, payload, label }) {
-  if (!active || !payload?.length) return null;
-  const d = payload[0];
-  const price = d.value;
-  const formatted = price != null
-    ? Number(price).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-    : "—";
-
-  return (
-    <div style={{
-      background: "#0a0a0a",
-      border: "1px solid var(--panel-border)",
-      padding: "0.4rem 0.7rem",
-      fontSize: "0.78rem",
-      fontFamily: "'JetBrains Mono', monospace",
-    }}>
-      <div style={{ color: "var(--text-mute)", fontSize: "0.65rem", marginBottom: "0.15rem" }}>{label}</div>
-      <div style={{ color: "var(--green)", fontWeight: 700, fontSize: "1rem" }}>{formatted}</div>
-      {d.payload?.change != null && (
-        <div style={{ color: d.payload.change >= 0 ? "var(--green)" : "var(--red)", fontSize: "0.72rem" }}>
-          {d.payload.change >= 0 ? "+" : ""}{d.payload.change.toFixed(2)}%
-        </div>
-      )}
-    </div>
-  );
-}
-
-export default function ChartModal({ asset, data, onClose }) {
-  useEffect(() => {
-    function handleKey(e) {
-      if (e.key === "Escape") onClose();
-    }
-    window.addEventListener("keydown", handleKey);
-    return () => window.removeEventListener("keydown", handleKey);
-  }, [onClose]);
-
-  if (!asset || !data || data.length === 0) return null;
-
-  const firstPrice = data[0]?.price;
-  const lastPrice = data[data.length - 1]?.price;
-  const totalChange = firstPrice ? ((lastPrice - firstPrice) / firstPrice) * 100 : 0;
-  const isUp = totalChange >= 0;
-  const strokeColor = isUp ? "var(--green)" : "var(--red)";
-  const fillColor = isUp ? "rgba(0, 255, 65, 0.06)" : "rgba(255, 51, 51, 0.06)";
-
-  // Add change % to each data point
-  const enriched = data.map((d) => ({
-    ...d,
-    change: firstPrice ? ((d.price - firstPrice) / firstPrice) * 100 : 0,
-  }));
-
-  return (
-    <div
-      onClick={onClose}
-      style={{
-        position: "fixed",
-        inset: 0,
-        background: "rgba(0,0,0,0.85)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        zIndex: 200,
-        cursor: "pointer",
-      }}
-    >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          background: "#0a0a0a",
-          border: "1px solid var(--panel-border)",
-          borderRadius: "var(--radius)",
-          width: "min(90vw, 1100px)",
-          maxHeight: "85vh",
-          cursor: "default",
-          overflow: "hidden",
-        }}
-      >
-        {/* Header */}
-        <div style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          padding: "0.6rem 1rem",
-          borderBottom: "1px solid var(--panel-border)",
-        }}>
-          <div style={{ display: "flex", alignItems: "baseline", gap: "1rem" }}>
-            <span style={{ color: "var(--green)", fontWeight: 700, fontSize: "1rem", letterSpacing: "0.05em" }}>
-              {asset.name || asset.symbol}
-            </span>
-            <span style={{ color: "var(--text)", fontWeight: 700, fontSize: "1.2rem" }}>
-              {lastPrice != null ? Number(lastPrice).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "—"}
-            </span>
-            <span style={{ color: isUp ? "var(--green)" : "var(--red)", fontWeight: 600, fontSize: "0.85rem" }}>
-              {isUp ? "+" : ""}{totalChange.toFixed(2)}% (30D)
-            </span>
-          </div>
-          <button
-            onClick={onClose}
-            style={{
-              background: "none",
-              border: "1px solid var(--panel-border)",
-              color: "var(--text-mute)",
-              fontFamily: "inherit",
-              fontSize: "0.7rem",
-              padding: "0.2rem 0.5rem",
-              cursor: "pointer",
-              borderRadius: "var(--radius)",
-            }}
-          >
-            ESC
-          </button>
-        </div>
-
-        {/* Chart */}
-        <div style={{ padding: "1rem", height: 420 }}>
-          <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={enriched} margin={{ top: 10, right: 10, bottom: 10, left: 10 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
-              <XAxis
-                dataKey="date"
-                tick={{ fontSize: 10, fill: "#ffffff", fontFamily: "'JetBrains Mono', monospace" }}
-                tickLine={false}
-                axisLine={{ stroke: "var(--panel-border)" }}
-                interval="preserveStartEnd"
-              />
-              <YAxis
-                tick={{ fontSize: 10, fill: "#ffffff", fontFamily: "'JetBrains Mono', monospace" }}
-                tickLine={false}
-                axisLine={{ stroke: "var(--panel-border)" }}
-                domain={["auto", "auto"]}
-                tickFormatter={(v) => v.toLocaleString()}
-              />
-              <Tooltip content={<ChartTooltip />} cursor={{ stroke: "var(--text-mute)", strokeDasharray: "3 3" }} />
-              <ReferenceLine y={firstPrice} stroke="var(--text-mute)" strokeDasharray="4 4" strokeWidth={0.5} />
-              <Area
-                type="monotone"
-                dataKey="price"
-                stroke={strokeColor}
-                fill={fillColor}
-                strokeWidth={2}
-                dot={false}
-                activeDot={{ r: 4, fill: strokeColor, stroke: "#0a0a0a", strokeWidth: 2 }}
-              />
-            </AreaChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
-    </div>
-  );
+export default function ChartModal({ asset, data = [], loading, error, onRetry, onClose }) {
+  const [period, setPeriod] = useState(63);
+  const rows = windowRows(data, period);
+  const change = rows.length > 1 && rows[0].price !== 0 ? (rows.at(-1).price / rows[0].price - 1) * 100 : null;
+  const unit = assetUnit(asset.symbol);
+  return <Dialog title={`${asset.name || asset.symbol} · History`} onClose={onClose}>
+    {error && rows.length > 0 && <DataState error title="History refresh failed" message="Showing previously loaded observations." onRetry={onRetry} loading={loading} />}
+    {loading && !rows.length ? <DataState title="Loading price history…" /> : error && !rows.length ? <DataState error title="History unavailable" message="The history request failed. Try again." onRetry={onRetry} loading={loading} /> : !rows.length ? <DataState title="No history for this asset" message="This asset has no observations in the history feed yet." onRetry={onRetry} loading={loading} /> : <>
+      <div className="chart-value"><strong>{numberLabel(rows.at(-1).price)}</strong><span>{unit}</span>{change != null && <span style={{ color: change > 0 ? "var(--green)" : change < 0 ? "var(--red)" : "var(--text-soft)" }}>{change > 0 ? "+" : ""}{change.toFixed(2)}% over displayed period</span>}</div>
+      <ChartControls value={period} onChange={setPeriod} rows={rows} />
+      <p className="muted">Closing observations · {unit}. Period buttons use 21, 63 or 252 observations.</p>
+      <div className="chart-frame"><ResponsiveContainer width="100%" height="100%"><AreaChart data={rows} margin={{ right: 12, top: 12 }} accessibilityLayer>
+        <CartesianGrid vertical={false} stroke="var(--panel-border)" />
+        <XAxis dataKey="date" tickFormatter={shortDate} minTickGap={45} tick={{ fill: "var(--text-mute)", fontSize: 11 }} />
+        <YAxis domain={["auto", "auto"]} width={70} tickFormatter={numberLabel} tick={{ fill: "var(--text-mute)", fontSize: 11 }} />
+        <Tooltip content={<ChartTooltip unit={unit} />} />
+        <Area dataKey="price" name={asset.name || asset.symbol} stroke="var(--green)" fill="var(--accent-wash)" strokeWidth={2} isAnimationActive={false} />
+      </AreaChart></ResponsiveContainer></div>
+    </>}
+  </Dialog>;
 }
