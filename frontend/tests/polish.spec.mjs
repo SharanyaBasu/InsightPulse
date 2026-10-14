@@ -31,8 +31,12 @@ test('help keeps keyboard focus in the dialog and restores the opener', async ({
   await page.getByRole('button', { name: 'Keyboard shortcuts' }).click();
   const dialog = page.getByRole('dialog');
   await expect(dialog).toBeVisible();
-  for (let i = 0; i < 5; i++) await page.keyboard.press('Tab');
-  await expect.poll(() => page.evaluate(() => Boolean(document.activeElement.closest('dialog')))).toBe(true);
+  const close = dialog.getByRole('button', { name: /Close/ });
+  await expect(close).toBeFocused();
+  for (const key of ['Tab', 'Tab', 'Shift+Tab', 'Shift+Tab']) {
+    await page.keyboard.press(key);
+    await expect(close).toBeFocused();
+  }
   await page.keyboard.press('Escape');
   await expect(dialog).not.toBeVisible();
   await expect(page.getByRole('button', { name: 'Keyboard shortcuts' })).toBeFocused();
@@ -48,6 +52,15 @@ test('history dialog opens from keyboard, reports failure, retries and restores 
   await page.keyboard.press('Enter');
   const dialog = page.getByRole('dialog');
   await expect(dialog.getByText('History unavailable', { exact: true })).toBeVisible();
+  const close = dialog.getByRole('button', { name: /Close/ });
+  const retry = dialog.getByRole('button', { name: 'Retry' });
+  await expect(close).toBeFocused();
+  await page.keyboard.press('Shift+Tab');
+  await expect(retry).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(close).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(retry).toBeFocused();
   fail = false;
   await dialog.getByRole('button', { name: 'Retry' }).click();
   await expect(dialog.getByText(/over displayed period/)).toBeVisible();
