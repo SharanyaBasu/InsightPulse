@@ -144,3 +144,59 @@ percentage points, and VIX from 20 to 25 is +5 index points. The legacy
 `vix_change_pct` API field is rejected with HTTP 422; clients must explicitly
 submit `vix_change_points`. Saved browser inputs from the previous unit contract
 retain other shocks but reset VIX to zero with a notice.
+
+## Validation and merge gate (Phase 5)
+
+[Validate](.github/workflows/validate.yml) runs on every pull request, pushes to
+`main`, merge queues, and manual dispatch. It requires no provider secrets:
+
+- **Frontend checks:** clean lockfile install, zero-warning lint, unit tests,
+  production build, and Chromium browser journeys (dashboard, comparisons,
+  neutral/changed scenarios, API failures, mobile and keyboard use).
+- **Backend and model checks:** Python 3.13 dependencies, a fresh download of the
+  pinned release ZIP with SHA-256 verification, the existing model smoke test,
+  and backend tests. Tests use isolated SQLite and block network connections;
+  Yahoo, FRED and Gemini failures are simulated. The model smoke test verifies
+  deterministic output, exact neutral effects, reference explanations and
+  confidence, and forbids retraining and training-data reads.
+- **Quality gate:** fails unless both preceding jobs succeed, including when
+  either job is cancelled or skipped. Browser traces/screenshots on failure and
+  backend/model reports are retained for seven days. Tests do not auto-retry.
+
+To enforce the gate, after this workflow has been pushed and run once, a repository
+admin must configure **Settings → Rules → Rulesets** (or branch protection) for
+`main`: require a pull request, require **Quality gate**, and require the branch
+to be up to date. Avoid bypass permissions for normal merges. A workflow file
+alone does not turn on repository protection. Any future deployment workflow
+must depend on successful validation for the same commit. No deployment workflow
+or hosted branch-protection setting is created by the local validation setup.
+
+Local checks (with the root virtual environment active):
+
+```bash
+python -m scenario_modeling.install_bundle
+python -m scenario_modeling.run_bundle_smoke_test --bundle scenario_modeling/artifacts/scenario_playground_ridge/v1.0.0 --forbid-training-data
+cd backend
+python -m pip install -r requirements.txt
+python -m pytest tests -q
+cd ../frontend
+npm ci
+npm run lint -- --max-warnings=0
+npm test
+npm run build
+npx playwright install chromium
+npm run test:browser
+```
+
+For local testing with installed Chrome, use
+`PLAYWRIGHT_CHANNEL=chrome npm run test:browser`. CI uses Playwright's matching
+Chromium build and always starts its own frontend server. To reproduce CI locally
+without using your running dev server, run
+`CI=1 PLAYWRIGHT_PORT=5174 npm run test:browser` after installing Chromium.
+Browser tests mock API
+responses to stay deterministic; HTTP backend tests and the separate real-bundle
+smoke test cover the actual request contract and model execution.
+
+Scenario requests reject unknown fields, booleans, numeric strings, non-finite
+values and values outside the documented bounds with HTTP 422. A missing or
+invalid model bundle returns an actionable HTTP 503 instead of an opaque 500.

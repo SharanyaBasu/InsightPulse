@@ -1,0 +1,106 @@
+name: Validate
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  merge_group:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: validate-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  frontend:
+    name: Frontend checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm run lint -- --max-warnings=0
+      - run: npm test
+      - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:browser
+      - name: Save browser failure diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-diagnostics
+          path: |
+            frontend/playwright-report/
+            frontend/test-results/
+          retention-days: 7
+          if-no-files-found: ignore
+
+  backend:
+    name: Backend and model checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      PYTHON_DOTENV_DISABLED: '1'
+      DATABASE_URL: 'sqlite://'
+      OMP_NUM_THREADS: '1'
+      OPENBLAS_NUM_THREADS: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+          cache: pip
+          cache-dependency-path: |
+            backend/requirements.txt
+            pyproject.toml
+      - run: python -m pip install -r requirements.txt
+        working-directory: backend
+      # The installer downloads only the versioned URL and rejects a SHA-256 mismatch.
+      # Never substitute a PR attachment or an unverified cached joblib file.
+      - name: Install verified Ridge release
+        run: python -m scenario_modeling.install_bundle
+      - name: Model smoke test in a fresh process
+        run: python -m scenario_modeling.run_bundle_smoke_test --bundle scenario_modeling/artifacts/scenario_playground_ridge/v1.0.0 --forbid-training-data --json > model-smoke.json
+      - name: Backend regression tests (providers offline)
+        run: python -m pytest tests -q --junitxml=../backend-test-results.xml
+        working-directory: backend
+      - name: Save backend and model results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-model-results
+          path: |
+            backend-test-results.xml
+            model-smoke.json
+          retention-days: 7
+          if-no-files-found: ignore
+
+  quality-gate:
+    name: Quality gate
+    if: always()
+    needs: [frontend, backend]
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Require every validation job to succeed
+        env:
+          FRONTEND_RESULT: ${{ needs.frontend.result }}
+          BACKEND_RESULT: ${{ needs.backend.result }}
+        run: |
+          test "$FRONTEND_RESULT" = success
+          test "$BACKEND_RESULT" = success

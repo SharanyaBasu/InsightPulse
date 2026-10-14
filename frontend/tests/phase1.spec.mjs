@@ -88,3 +88,32 @@ test('refresh timestamps do not imply that old observations are live', async ({ 
   await expect(page.getByText('CONNECTED', { exact: true })).toBeVisible();
   await expect(page.getByText('Market data as of 2026-06-11')).toBeVisible();
 });
+
+test('changed scenario submits every input in canonical units and replaces neutral results', async ({ page }) => {
+  await page.getByRole('button', { name: 'RUN SCENARIO', exact: true }).click();
+  await expect(page.getByText(neutral.summary)).toBeVisible();
+  const changed = {
+    ...neutral,
+    summary: 'Changed oil shock projects additional oil and energy impact.',
+    explanation: 'The displayed results use the submitted 25% oil shock.',
+    context: { ...neutral.context, neutral_inputs: false },
+    asset_deltas: { ...neutral.asset_deltas, oil: 12.34, ten_year_yield_bps: 7.89 },
+    sector_impacts: { ...neutral.sector_impacts, energy: 4.56 },
+  };
+  let submitted;
+  await page.route('**/api/scenario/run', route => {
+    submitted = route.request().postDataJSON();
+    return route.fulfill({ json: changed });
+  });
+  await page.getByRole('textbox', { name: /Oil Price Change/ }).fill('25');
+  await expect(page.getByRole('status')).toContainText('Inputs changed');
+  await page.getByRole('button', { name: 'RUN SCENARIO', exact: true }).click();
+  await expect(page.getByText(changed.summary)).toBeVisible();
+  expect(submitted).toEqual({ fed_funds_change_bps: 0, cpi_surprise_pct: 0, oil_change_pct: 25, gdp_surprise_pct: 0, unemployment_change_pct: 0, pmi_change: 0, dxy_change_pct: 0, vix_change_points: 0 });
+  await expect(page.getByRole('status')).toContainText('Results match the current inputs');
+  await expect(page.getByText(neutral.summary)).toHaveCount(0);
+  await expect(page.getByText('+12.34 %', { exact: true })).toBeVisible();
+  await expect(page.getByText('+7.89 bps', { exact: true })).toBeVisible();
+  await page.getByText(/Displayed run:/).click();
+  await expect(page.getByText('Oil Price Change: 25 %', { exact: true })).toBeVisible();
+});

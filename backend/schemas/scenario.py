@@ -92,6 +92,9 @@ class ScenarioRunRequest(BaseModel):
     )
 
     model_config = {
+        "extra": "forbid",
+        "strict": True,
+        "allow_inf_nan": False,
         "json_schema_extra": {
             "examples": [
                 {

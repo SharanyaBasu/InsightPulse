@@ -1,3 +1,6 @@
+import logging
+
+from scenario_modeling.src.scenario_runtime import BundleValidationError
 from fastapi import FastAPI, HTTPException
 from threading import Lock
 from sqlalchemy.exc import IntegrityError
@@ -341,5 +344,12 @@ def run_scenario(payload: ScenarioRunRequest) -> ScenarioRunResponse:
     Request/response schemas are defined in `schemas/scenario.py`.
     Projection logic lives in `scenario_service.run_scenario` (Ridge v1 by default).
     """
-    result = run_scenario_engine(payload.model_dump())
+    try:
+        result = run_scenario_engine(payload.model_dump())
+    except (BundleValidationError, FileNotFoundError) as exc:
+        logging.getLogger(__name__).exception("Scenario model bundle unavailable")
+        raise HTTPException(
+            status_code=503,
+            detail="Scenario model bundle unavailable. Install or restore the verified release bundle, then retry.",
+        ) from exc
     return ScenarioRunResponse(**result)

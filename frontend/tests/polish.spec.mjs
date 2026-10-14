@@ -9,18 +9,25 @@ async function mock(page) {
   await page.route('**/api/**', route => route.fulfill({ json: route.request().url().endsWith('/overview') ? overview : route.request().url().endsWith('/summary/daily') ? { headline: 'Equities rise as gold retreats', regime_summary: 'Mixed conditions across markets.', key_changes: ['Equities gained.'] } : history }));
 }
 
-test('all pages fit desktop and mobile; help remains keyboard accessible', async ({ page }) => {
-  await mock(page);
-  const errors = [];
-  page.on('pageerror', error => errors.push(error.message));
-  for (const width of [1440, 768, 390, 320]) {
+for (const width of [1440, 768, 390, 320]) {
+  test(`all pages fit a ${width}px viewport without runtime errors`, async ({ page }) => {
+    await mock(page);
+    const errors = [];
+    page.on('pageerror', error => errors.push(error.message));
     await page.setViewportSize({ width, height: 900 });
     for (const path of ['/', '/cross-asset', '/sectors', '/signals', '/scenario']) {
       await page.goto(path);
       await expect(page.locator('main h1')).toBeVisible();
       await expect.poll(() => page.locator('main').evaluate(el => el.scrollWidth <= el.clientWidth + 1)).toBe(true);
     }
-  }
+    expect(errors).toEqual([]);
+  });
+}
+
+test('help keeps keyboard focus in the dialog and restores the opener', async ({ page }) => {
+  await mock(page);
+  await page.setViewportSize({ width: 320, height: 900 });
+  await page.goto('/scenario');
   await page.getByRole('button', { name: 'Keyboard shortcuts' }).click();
   const dialog = page.getByRole('dialog');
   await expect(dialog).toBeVisible();
@@ -29,7 +36,6 @@ test('all pages fit desktop and mobile; help remains keyboard accessible', async
   await page.keyboard.press('Escape');
   await expect(dialog).not.toBeVisible();
   await expect(page.getByRole('button', { name: 'Keyboard shortcuts' })).toBeFocused();
-  expect(errors).toEqual([]);
 });
 
 test('history dialog opens from keyboard, reports failure, retries and restores focus', async ({ page }) => {
@@ -97,4 +103,20 @@ test('cross-asset empty pair keeps controls available to recover', async ({ page
   await expect(page.getByText('NO OVERLAPPING HISTORY')).toBeVisible();
   await page.getByLabel('Comparison asset').selectOption('tnx');
   await expect(page.getByRole('heading', { name: 'Normalized performance' })).toBeVisible();
+});
+
+test('dashboard to comparison journey updates the selected series and period', async ({ page }) => {
+  await mock(page);
+  await page.goto('/');
+  await expect(page.getByText('Equities rise as gold retreats')).toBeVisible();
+  await page.getByRole('navigation').getByRole('link', { name: /CROSS-ASSET/ }).click();
+  await expect(page.getByRole('heading', { name: 'Normalized performance' })).toBeVisible();
+  await expect(page.getByLabel('Comparison asset')).toHaveValue('gold');
+  await page.getByLabel('Comparison asset').selectOption('tnx');
+  await expect(page.getByLabel('Comparison asset')).toHaveValue('tnx');
+  await expect(page.getByLabel('Series performance summary')).toContainText('10-Year Treasury');
+  await expect(page.getByLabel('Series performance summary')).not.toContainText('Gold');
+  await page.getByRole('button', { name: '1M', exact: true }).click();
+  await expect(page.getByText(/21 observations/)).toBeVisible();
+  await expect(page.getByLabel('Analysis window')).toContainText('21');
 });
