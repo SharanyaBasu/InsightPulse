@@ -10,6 +10,21 @@ const neutral = {
   summary: 'No shocks applied. Results match baseline. Zero means no additional impact, not a prediction that markets will stay flat.',
   regime: 'Low VIX', confidence: 'Low', explanation: 'Fixed historical state.',
   context: { baseline_date: '2026-06-11', horizon_trading_days: 21, effect_type: 'incremental_vs_baseline', neutral_inputs: true },
+  warnings: [{ code: 'STATE_SNAPSHOT_STALE', severity: 'high', message: 'The default state snapshot is not current relative to the diagnostic date.' }],
+  calculation_details: {
+    model_version: 'scenario-playground-all-target-ridge-v1',
+    bundle_version: 'scenario-playground-ridge-v1.0.0',
+    baseline_date: '2026-06-11',
+    horizon_trading_days: 21,
+    submitted_inputs: {
+      oil_change_pct: { label: 'Oil Price Change', value: 0, unit: 'percent' },
+      vix_change_points: { label: 'VIX Change', value: 0, unit: 'index points' },
+    },
+    targets: {
+      sp500: { label: 'S&P 500', unit: 'percent', baseline_prediction: 1.2345, scenario_prediction: 1.2345, difference: 0 },
+      oil: { label: 'Oil', unit: 'percent', baseline_prediction: 1, scenario_prediction: 1, difference: 0 },
+    },
+  },
   asset_deltas: { sp500: 0, nasdaq: 0, ten_year_yield_bps: 0, dxy: 0, gold: 0, oil: 0 },
   sector_impacts: { technology: 0, energy: 0, financials: 0, utilities: 0, healthcare: 0, consumer_discretionary: 0 },
 };
@@ -29,6 +44,7 @@ test('neutral rendering, historical context and edits before blur', async ({ pag
   await expect(page.getByText(neutral.summary)).toBeVisible();
   await expect(page.getByText('Historical baseline: 2026-06-11')).toBeVisible();
   await expect(page.getByText(/Horizon: 21 trading days/)).toBeVisible();
+  await expect(page.getByRole('alert', { name: 'Historical state warnings' })).toContainText('STATE_SNAPSHOT_STALE');
   await expect(page.getByText(/^\+0(?:\.00)?\s*(?:%|bps)$/)).toHaveCount(0);
   const oil = page.getByRole('textbox', { name: /Oil Price Change/ });
   await oil.fill('5');
@@ -47,8 +63,9 @@ test('failed rerun retains the original assumptions', async ({ page }) => {
   await page.route('**/api/scenario/run', route => route.fulfill({ status: 500, json: { detail: 'Test failure' } }));
   await page.getByRole('button', { name: 'RUN SCENARIO', exact: true }).click();
   await expect(page.getByRole('status')).toContainText('Latest run failed');
-  await page.getByText(/Displayed run:/).click();
-  await expect(page.getByText('Oil Price Change: 0 %', { exact: true })).toBeVisible();
+  await page.getByText('Calculation details', { exact: true }).click();
+  await expect(page.getByText('0.00 %', { exact: true }).first()).toBeVisible();
+  await expect(page.getByText('scenario-playground-all-target-ridge-v1', { exact: true })).toBeVisible();
 });
 
 test('edits during a request remain stale; reset prevents a late response restoring results', async ({ page }) => {
@@ -97,6 +114,17 @@ test('changed scenario submits every input in canonical units and replaces neutr
     summary: 'Changed oil shock projects additional oil and energy impact.',
     explanation: 'The displayed results use the submitted 25% oil shock.',
     context: { ...neutral.context, neutral_inputs: false },
+    calculation_details: {
+      ...neutral.calculation_details,
+      submitted_inputs: {
+        ...neutral.calculation_details.submitted_inputs,
+        oil_change_pct: { label: 'Oil Price Change', value: 25, unit: 'percent' },
+      },
+      targets: {
+        ...neutral.calculation_details.targets,
+        oil: { label: 'Oil', unit: 'percent', baseline_prediction: 1, scenario_prediction: 13.34, difference: 12.34 },
+      },
+    },
     asset_deltas: { ...neutral.asset_deltas, oil: 12.34, ten_year_yield_bps: 7.89 },
     sector_impacts: { ...neutral.sector_impacts, energy: 4.56 },
   };
@@ -114,6 +142,7 @@ test('changed scenario submits every input in canonical units and replaces neutr
   await expect(page.getByText(neutral.summary)).toHaveCount(0);
   await expect(page.getByText('+12.34 %', { exact: true })).toBeVisible();
   await expect(page.getByText('+7.89 bps', { exact: true })).toBeVisible();
-  await page.getByText(/Displayed run:/).click();
-  await expect(page.getByText('Oil Price Change: 25 %', { exact: true })).toBeVisible();
+  await page.getByText('Calculation details', { exact: true }).click();
+  await expect(page.getByText('25.00 %', { exact: true })).toBeVisible();
+  await expect(page.getByRole('row', { name: /Oil 1.00 % 13.34 % 12.34 %/ })).toBeVisible();
 });

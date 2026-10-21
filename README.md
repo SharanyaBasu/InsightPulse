@@ -102,6 +102,8 @@ Positive values represent increases or upside surprises; negative values represe
 | `asset_deltas` | Projected changes for the S&P 500, NASDAQ, 10-year yield, DXY, gold, and oil |
 | `sector_impacts` | Projected percentage impacts for technology, energy, financials, utilities, healthcare, and consumer discretionary |
 | `explanation` | Explanation of the model drivers and research limitations |
+| `calculation_details` | Model and bundle versions, baseline date, horizon, server-echoed inputs, and per-target baseline/scenario/difference values |
+| `warnings` | Deduplicated historical-state warnings kept visible beside the main result |
 
 Values under `asset_deltas` are percentages except for `ten_year_yield_bps`, which is expressed in basis points. Values under `sector_impacts` are percentages.
 

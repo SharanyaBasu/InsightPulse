@@ -1,10 +1,10 @@
 import PageHeader from "../components/Terminal/PageHeader";
-import { MACRO_INPUT_FIELDS } from "../context/macroInputs";
 import MacroInputPanel from "../components/Macro/MacroInputPanel";
 import TerminalPanel from "../components/Terminal/TerminalPanel";
 import ScenarioSummaryStrip from "../components/Scenario/ScenarioSummaryStrip";
 import ScenarioDeltaCards from "../components/Overview/ScenarioDeltaCards";
 import SectorHeatmap from "../components/Overview/SectorHeatmap";
+import CalculationDetails from "../components/Scenario/CalculationDetails";
 import { useMacroInputs } from "../context/useMacroInputs";
 import { toDeltaAssets, toHeatmapSectors } from "../mocks/scenarioResult";
 
@@ -107,8 +107,22 @@ function ExplanationBox({ text }) {
   );
 }
 
+function HistoricalStateWarnings({ warnings = [] }) {
+  if (!warnings.length) return null;
+  return (
+    <div className="scenario-warnings" role="alert" aria-label="Historical state warnings">
+      <strong>Historical-state warning</strong>
+      {warnings.map((warning) => (
+        <p key={`${warning.code}:${warning.message}`}>
+          {warning.message} <span>[{warning.code}]</span>
+        </p>
+      ))}
+    </div>
+  );
+}
+
 export default function ScenarioPage() {
-  const { scenarioResult, runLoading, resultsStale, submittedInputs, lastRunAt, runError } = useMacroInputs();
+  const { scenarioResult, runLoading, resultsStale, lastRunAt, runError } = useMacroInputs();
   const hasResults = Boolean(scenarioResult);
 
   return (
@@ -140,16 +154,11 @@ export default function ScenarioPage() {
                     Values show additional impact relative to baseline, using historical—not live—market conditions.
                   </div>
                 )}
+                <HistoricalStateWarnings warnings={scenarioResult.warnings} />
                 <div role="status" style={{ color: resultsStale || runError ? "var(--amber)" : "var(--text-soft)" }}>
                   {runLoading ? "Running scenario… Previous results remain below." : runError ? "Latest run failed. Previous results remain below." : resultsStale ? "Inputs changed—run again to update results." : "Results match the current inputs."}
                   {runLoading && resultsStale && " Inputs have changed since the displayed run."}
                 </div>
-                <details>
-                  <summary>Displayed run: {lastRunAt?.toLocaleString()} — view assumptions</summary>
-                  {submittedInputs && MACRO_INPUT_FIELDS.map((field) => (
-                    <div key={field.key}>{field.label}: {submittedInputs[field.key]} {field.unit}</div>
-                  ))}
-                </details>
               </div>
               <ScenarioSummaryStrip summary={scenarioResult.summary} />
               <RegimeConfidenceRow
@@ -159,6 +168,7 @@ export default function ScenarioPage() {
               <ScenarioDeltaCards assets={toDeltaAssets(scenarioResult.asset_deltas)} />
               <SectorHeatmap scenario horizon={scenarioResult.context?.horizon_trading_days} sectors={toHeatmapSectors(scenarioResult.sector_impacts)} />
               <ExplanationBox text={scenarioResult.explanation} />
+              <CalculationDetails details={scenarioResult.calculation_details} runAt={lastRunAt} />
             </>
           )}
         </TerminalPanel>

@@ -62,6 +62,28 @@ def test_neutral_and_changed_scenarios_return_real_model_results(client):
     assert result['context'] == {**baseline['context'], 'neutral_inputs': False}
     assert result['context']['baseline_date'] == '2026-06-11'
     assert result['context']['horizon_trading_days'] == 21
+    details = result['calculation_details']
+    assert details['model_version'] == 'scenario-playground-all-target-ridge-v1'
+    assert details['bundle_version'] == 'scenario-playground-ridge-v1.0.0'
+    assert details['baseline_date'] == result['context']['baseline_date']
+    assert details['horizon_trading_days'] == result['context']['horizon_trading_days']
+    assert details['submitted_inputs']['oil_change_pct'] == {
+        'label': 'Oil Price Change', 'value': 25.0, 'unit': 'percent',
+    }
+    oil = details['targets']['oil']
+    assert oil['difference'] == pytest.approx(
+        oil['scenario_prediction'] - oil['baseline_prediction']
+    )
+    assert result['asset_deltas']['oil'] == round(oil['difference'], 2)
+
+
+def test_state_warnings_are_structured_and_deduplicated(client):
+    response = client.post('/api/scenario/run', json={})
+    assert response.status_code == 200
+    warnings = response.json()['warnings']
+    identities = {(warning['code'], warning['message']) for warning in warnings}
+    assert len(identities) == len(warnings)
+    assert all(warning['severity'] in {'low', 'medium', 'high'} for warning in warnings)
 
 
 def test_missing_model_returns_actionable_service_unavailable(client, monkeypatch, tmp_path):

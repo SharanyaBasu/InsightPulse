@@ -56,6 +56,32 @@ SECTOR_TARGETS = (
     "consumer_discretionary",
 )
 
+API_INPUT_METADATA = {
+    "fed_funds_change_bps": ("Fed Funds Rate Change", "basis points"),
+    "cpi_surprise_pct": ("CPI Surprise", "percentage points"),
+    "oil_change_pct": ("Oil Price Change", "percent"),
+    "gdp_surprise_pct": ("GDP Growth Surprise", "percentage points"),
+    "unemployment_change_pct": ("Unemployment Change", "percentage points"),
+    "pmi_change": ("PMI Change", "index points"),
+    "dxy_change_pct": ("DXY Change", "percent"),
+    "vix_change_points": ("VIX Change", "index points"),
+}
+
+TARGET_LABELS = {
+    "sp500": "S&P 500",
+    "nasdaq": "NASDAQ",
+    "ten_year_yield_bps": "10Y Yield",
+    "dxy": "DXY",
+    "gold": "Gold",
+    "oil": "Oil",
+    "technology": "Technology",
+    "energy": "Energy",
+    "financials": "Financials",
+    "utilities": "Utilities",
+    "healthcare": "Healthcare",
+    "consumer_discretionary": "Consumer Discretionary",
+}
+
 # Map research overall_research_confidence -> API ConfidenceLevel
 _RESEARCH_CONFIDENCE_TO_API = {
     "OUTSIDE_HISTORICAL_SUPPORT": "Low",
@@ -155,7 +181,68 @@ def _top_incremental_driver_names(research_result: dict[str, Any], limit: int = 
     return ordered
 
 
-def adapt_research_result(research_result: dict[str, Any]) -> dict[str, Any]:
+def _state_warnings(research_result: dict[str, Any]) -> list[dict[str, str]]:
+    """Deduplicate state-freshness warnings repeated for every target."""
+
+    warnings: list[dict[str, str]] = []
+    seen: set[tuple[str, str]] = set()
+    confidence_targets = research_result.get("confidence", {}).get("targets", {})
+    for payload in confidence_targets.values():
+        state_warnings = payload.get("warnings", {}).get("state_freshness", [])
+        for warning in state_warnings:
+            code = str(warning.get("code", "HISTORICAL_STATE_WARNING"))
+            message = str(warning.get("message", "The model state is not current."))
+            identity = (code, message)
+            if identity in seen:
+                continue
+            seen.add(identity)
+            severity = str(warning.get("severity", "medium")).lower()
+            if severity not in {"low", "medium", "high"}:
+                severity = "medium"
+            warnings.append({"code": code, "severity": severity, "message": message})
+    return warnings
+
+
+def _calculation_details(
+    research_result: dict[str, Any],
+    submitted_inputs: dict[str, Any],
+) -> dict[str, Any]:
+    """Build the public, auditable calculation contract from runtime output."""
+
+    context = research_result.get("context", {})
+    bundle = research_result.get("bundle", {})
+    targets = research_result["targets"]
+    input_details = {}
+    for key, (label, unit) in API_INPUT_METADATA.items():
+        input_details[key] = {
+            "label": label,
+            "value": float(submitted_inputs.get(key, 0.0) or 0.0),
+            "unit": unit,
+        }
+    target_details = {}
+    for key in (*ASSET_TARGETS, *SECTOR_TARGETS):
+        target = targets[key]
+        target_details[key] = {
+            "label": TARGET_LABELS[key],
+            "unit": str(target["unit"]),
+            "baseline_prediction": float(target["baseline_prediction"]),
+            "scenario_prediction": float(target["scenario_prediction"]),
+            "difference": float(target["incremental_scenario_effect"]),
+        }
+    return {
+        "model_version": str(bundle.get("model_version", "unknown")),
+        "bundle_version": str(bundle.get("bundle_version", "unknown")),
+        "baseline_date": str(context.get("sample_date") or "2026-06-11"),
+        "horizon_trading_days": int(research_result.get("horizon_trading_days", 21)),
+        "submitted_inputs": input_details,
+        "targets": target_details,
+    }
+
+
+def adapt_research_result(
+    research_result: dict[str, Any],
+    submitted_inputs: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     """Map Ridge runtime output to ScenarioRunResponse fields."""
 
     targets = research_result["targets"]
@@ -213,6 +300,11 @@ def adapt_research_result(research_result: dict[str, Any]) -> dict[str, Any]:
             "effect_type": "incremental_vs_baseline",
             "neutral_inputs": neutral,
         },
+        "calculation_details": _calculation_details(
+            research_result,
+            submitted_inputs or {},
+        ),
+        "warnings": _state_warnings(research_result),
         "summary": summary,
         "regime": regime,
         "confidence": confidence,
@@ -232,4 +324,4 @@ class RidgeScenarioEngine:
         runtime = _load_runtime(self.bundle_path)
         shocks = map_api_inputs_to_model_shocks(inputs)
         research_result = runtime.predict(shocks)
-        return adapt_research_result(research_result)
+        return adapt_research_result(research_result, submitted_inputs=inputs)

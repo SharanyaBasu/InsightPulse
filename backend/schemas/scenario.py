@@ -153,10 +153,52 @@ class ScenarioContext(BaseModel):
     neutral_inputs: bool
 
 
+class CalculationInput(BaseModel):
+    """One submitted scenario input, echoed with its display metadata."""
+
+    label: str
+    value: float
+    unit: str
+
+
+class TargetCalculation(BaseModel):
+    """Auditable prediction arithmetic for one model target."""
+
+    label: str
+    unit: str
+    baseline_prediction: float
+    scenario_prediction: float
+    difference: float = Field(
+        ...,
+        description="Scenario prediction minus baseline prediction.",
+    )
+
+
+class CalculationDetails(BaseModel):
+    """Model identity, inputs, and target-level arithmetic for a scenario run."""
+
+    model_version: str
+    bundle_version: str
+    baseline_date: str
+    horizon_trading_days: int = Field(gt=0)
+    submitted_inputs: dict[str, CalculationInput]
+    targets: dict[str, TargetCalculation]
+
+
+class ScenarioWarning(BaseModel):
+    """User-facing warning preserved from model diagnostics."""
+
+    code: str
+    severity: Literal["low", "medium", "high"]
+    message: str
+
+
 class ScenarioRunResponse(BaseModel):
     """Simulation result consumed by ScenarioPage result panels."""
 
     context: ScenarioContext | None = None
+    calculation_details: CalculationDetails
+    warnings: list[ScenarioWarning] = Field(default_factory=list)
 
     summary: str = Field(
         ...,

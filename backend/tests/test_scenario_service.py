@@ -141,6 +141,8 @@ def test_default_engine_is_ridge():
     assert result["confidence"] in {"Low", "Medium", "High"}
     assert result["context"]["baseline_date"] == "2026-06-11"
     assert result["asset_deltas"]["sp500"] == 0.0
+    assert result["calculation_details"]["targets"]["sp500"]["difference"] == 0.0
+    assert result["calculation_details"]["submitted_inputs"]["vix_change_points"]["value"] == 0.0
 
 
 def test_deterministic_rule_engine_still_available():
