@@ -2,7 +2,7 @@ import { useState, useCallback } from "react";
 import {
   useMacroInputs,
 } from "../../context/useMacroInputs";
-import { MACRO_INPUT_FIELDS } from "../../context/macroInputs";
+import { MACRO_INPUT_FIELDS, SCENARIO_PRESETS, matchingPreset } from "../../context/macroInputs";
 import TerminalPanel from "../Terminal/TerminalPanel";
 
 const inputStyle = {
@@ -49,6 +49,7 @@ export default function MacroInputPanel({ embedded = false }) {
   const {
     inputs,
     setInput,
+    replaceInputs,
     saveInputs,
     resetInputs,
     runScenario,
@@ -117,6 +118,13 @@ export default function MacroInputPanel({ embedded = false }) {
     setDrafts({});
   };
 
+  const applyPreset = (preset) => {
+    replaceInputs(preset.values);
+    setDrafts({});
+  };
+
+  const activePreset = matchingPreset(inputs);
+
   const handleRunScenario = async () => {
     const effective = getEffectiveInputs();
 
@@ -142,6 +150,26 @@ export default function MacroInputPanel({ embedded = false }) {
           {unitNotice}
         </p>
       )}
+      <div className="scenario-presets">
+        <p>Illustrative examples, not forecasts.</p>
+        <div className="scenario-preset-list" role="group" aria-label="Example scenario presets">
+          {SCENARIO_PRESETS.map((preset) => (
+            <button
+              key={preset.id}
+              type="button"
+              className="ui-button scenario-preset"
+              aria-pressed={activePreset?.id === preset.id}
+              onClick={() => applyPreset(preset)}
+            >
+              <strong>{preset.label}</strong>
+              <span>{preset.assumption}</span>
+            </button>
+          ))}
+        </div>
+        <p className="scenario-preset-active">
+          Active scenario: <strong>{activePreset?.label ?? "Custom"}</strong>
+        </p>
+      </div>
       <div
         style={{
           display: "grid",

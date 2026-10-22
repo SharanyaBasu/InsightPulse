@@ -29,7 +29,7 @@ function ResultsPlaceholder() {
         Awaiting scenario
       </div>
       <div>
-        Adjust the macro inputs, then click <span style={{ color: "var(--green)" }}>RUN SCENARIO</span>
+        Choose an example preset or adjust the inputs, then click <span style={{ color: "var(--green)" }}>RUN SCENARIO</span>
         <br />
         to generate projected market impact.
       </div>

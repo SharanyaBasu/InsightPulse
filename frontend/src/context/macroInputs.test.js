@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { DEFAULT_MACRO_INPUTS, STORAGE_KEY, buildScenarioObject, loadSavedInputs } from './macroInputs.js';
+import { DEFAULT_MACRO_INPUTS, SCENARIO_PRESETS, STORAGE_KEY, buildScenarioObject, loadSavedInputs, matchingPreset } from './macroInputs.js';
 
 const storage = (entries) => ({ getItem: (key) => entries[key] ?? null });
 
@@ -21,6 +21,21 @@ test('versioned values take precedence over legacy storage and retain VIX points
   const result = loadSavedInputs(storage({ [STORAGE_KEY]: JSON.stringify({ vixChangePoints: 5 }), 'insightpulse.macroInputs': JSON.stringify({ vixChange: 25 }) }));
   assert.equal(result.inputs.vixChangePoints, 5);
   assert.equal(result.notice, null);
+});
+
+test('scenario presets are single-shock examples and any other mix is custom', () => {
+  const byId = Object.fromEntries(SCENARIO_PRESETS.map((preset) => [preset.id, preset]));
+  assert.deepEqual(byId['rate-cut'].values, { ...DEFAULT_MACRO_INPUTS, fedFundsRateChange: -25 });
+  assert.deepEqual(byId['inflation-surprise'].values, { ...DEFAULT_MACRO_INPUTS, cpiSurprise: 0.5 });
+  assert.deepEqual(byId['oil-shock'].values, { ...DEFAULT_MACRO_INPUTS, oilPriceChange: 10 });
+  assert.deepEqual(byId['growth-slowdown'].values, { ...DEFAULT_MACRO_INPUTS, gdpGrowthSurprise: -0.5 });
+  assert.equal(matchingPreset(DEFAULT_MACRO_INPUTS), null);
+  assert.equal(matchingPreset(byId['rate-cut'].values)?.label, 'Rate cut');
+  assert.equal(matchingPreset({ ...byId['rate-cut'].values, oilPriceChange: 5 }), null);
+  for (const preset of SCENARIO_PRESETS) {
+    assert.match(preset.assumption, /Other shocks: 0/);
+    assert.equal(matchingPreset(preset.values)?.id, preset.id);
+  }
 });
 
 test('missing, invalid, or inaccessible storage safely restores neutral inputs', () => {

@@ -73,6 +73,19 @@ export function MacroInputsProvider({ children }) {
     setDirty(true);
   }, []);
 
+  const replaceInputs = useCallback((nextValues) => {
+    const next = { ...DEFAULT_MACRO_INPUTS };
+    for (const field of MACRO_INPUT_FIELDS) {
+      const value = nextValues?.[field.key];
+      next[field.key] = typeof value === "number" && Number.isFinite(value)
+        ? clamp(value, field.min, field.max)
+        : 0;
+    }
+    if (inputsMatch(inputs, next)) return;
+    setInputs(next);
+    setDirty(true);
+  }, [inputs]);
+
   const saveInputs = useCallback(() => {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(inputs));
@@ -138,6 +151,7 @@ export function MacroInputsProvider({ children }) {
       value={{
         inputs,
         setInput,
+        replaceInputs,
         saveInputs,
         resetInputs,
         runScenario,

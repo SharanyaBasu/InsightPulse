@@ -89,6 +89,48 @@ test('refresh timestamps do not imply that old observations are live', async ({ 
   await expect(page.getByText('Market data as of 2026-06-11')).toBeVisible();
 });
 
+test('example presets can be inspected, edited, run, and reset', async ({ page }) => {
+  await expect(page.getByText('Illustrative examples, not forecasts.')).toBeVisible();
+  await expect(page.getByText('Active scenario: Custom', { exact: true })).toBeVisible();
+  const presets = [
+    { name: 'Rate cut', field: /Fed Funds Rate Change/, value: '-25', assumption: /Fed funds −25 bps/ },
+    { name: 'Inflation surprise', field: /CPI Surprise/, value: '0.5', assumption: /CPI surprise \+0\.5 percentage points/ },
+    { name: 'Oil shock', field: /Oil Price Change/, value: '10', assumption: /Oil price \+10%/ },
+    { name: 'Growth slowdown', field: /GDP Growth Surprise/, value: '-0.5', assumption: /GDP growth −0\.5 percentage points/ },
+  ];
+  for (const preset of presets) {
+    const button = page.getByRole('button', { name: preset.name });
+    await expect(button).toContainText(preset.assumption);
+    await expect(page.getByRole('textbox', { name: preset.field })).toHaveValue('0');
+    await button.click();
+    await expect(page.getByRole('textbox', { name: preset.field })).toHaveValue(preset.value);
+    for (const other of presets) {
+      if (other.name !== preset.name) await expect(page.getByRole('textbox', { name: other.field })).toHaveValue('0');
+    }
+    await expect(page.getByRole('textbox', { name: /VIX Change/ })).toHaveValue('0');
+    await expect(button).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.getByText(`Active scenario: ${preset.name}`, { exact: true })).toBeVisible();
+  }
+  await page.getByRole('button', { name: 'Rate cut' }).click();
+  await page.getByRole('textbox', { name: /Oil Price Change/ }).fill('5');
+  await expect(page.getByText('Active scenario: Custom', { exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Rate cut' })).toHaveAttribute('aria-pressed', 'false');
+  let submitted;
+  await page.route('**/api/scenario/run', route => {
+    submitted = route.request().postDataJSON();
+    return route.fulfill({ json: neutral });
+  });
+  await page.getByRole('button', { name: 'RUN SCENARIO', exact: true }).click();
+  await expect(page.getByText(neutral.summary)).toBeVisible();
+  expect(submitted).toEqual({ fed_funds_change_bps: -25, cpi_surprise_pct: 0, oil_change_pct: 5, gdp_surprise_pct: 0, unemployment_change_pct: 0, pmi_change: 0, dxy_change_pct: 0, vix_change_points: 0 });
+  await page.getByRole('textbox', { name: /Oil Price Change/ }).fill('0');
+  await expect(page.getByText('Active scenario: Rate cut', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'RESET', exact: true }).click();
+  await expect(page.getByRole('textbox', { name: /Fed Funds Rate Change/ })).toHaveValue('0');
+  await expect(page.getByText('Active scenario: Custom', { exact: true })).toBeVisible();
+  await expect(page.getByText('Awaiting scenario', { exact: true })).toBeVisible();
+});
+
 test('changed scenario submits every input in canonical units and replaces neutral results', async ({ page }) => {
   await page.getByRole('button', { name: 'RUN SCENARIO', exact: true }).click();
   await expect(page.getByText(neutral.summary)).toBeVisible();

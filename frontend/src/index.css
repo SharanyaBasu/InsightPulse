@@ -140,6 +140,14 @@ main { scroll-behavior: smooth; }
 .ui-button { display: inline-flex; align-items: center; justify-content: center; gap: 0.35rem; min-height: 40px; padding: 0.55rem 0.8rem; border: 1px solid var(--panel-border); border-radius: 5px; background: var(--panel); color: var(--text); font: inherit; font-size: 0.75rem; white-space: nowrap; }
 .ui-button:hover { background: var(--panel-hover); border-color: var(--text-mute); }
 .ui-button[aria-pressed="true"] { background: var(--accent-wash); color: var(--green); border-color: var(--green); }
+.scenario-presets { display: grid; gap: 0.55rem; margin-bottom: 0.95rem; }
+.scenario-presets p { margin: 0; color: var(--text-mute); font-size: 0.72rem; line-height: 1.45; }
+.scenario-presets p strong { color: var(--text); font-weight: 700; }
+.scenario-preset-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr)); gap: 0.45rem; }
+.scenario-preset { width: 100%; height: auto; min-height: 0; flex-direction: column; align-items: flex-start; justify-content: flex-start; gap: 0.25rem; padding: 0.5rem 0.6rem; text-align: left; white-space: normal; }
+.scenario-preset strong { font-size: 0.72rem; font-weight: 700; letter-spacing: 0.03em; }
+.scenario-preset span { color: var(--text-mute); font-size: 0.65rem; font-weight: 500; line-height: 1.35; }
+.scenario-preset[aria-pressed="true"] span { color: var(--text-soft); }
 .terminal-panel { background: var(--panel); border: 1px solid var(--panel-border); border-radius: var(--radius); }
 .panel-heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.6rem; padding: 0.9rem 1.1rem; border-bottom: 1px solid var(--panel-border); }
 .panel-heading h2 { color: var(--text-soft); text-transform: uppercase; font-size: 0.68rem; letter-spacing: 0.1em; line-height: 1.5; }

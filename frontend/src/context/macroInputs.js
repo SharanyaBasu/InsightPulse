@@ -77,6 +77,39 @@ export const DEFAULT_MACRO_INPUTS = Object.fromEntries(
   MACRO_INPUT_FIELDS.map((f) => [f.key, 0])
 );
 
+/** Illustrative single-shock examples. Only the rate-cut magnitude is specified; the others are reviewable examples, not forecasts. */
+export const SCENARIO_PRESETS = [
+  {
+    id: "rate-cut",
+    label: "Rate cut",
+    assumption: "Fed funds −25 bps. Other shocks: 0.",
+    values: { ...DEFAULT_MACRO_INPUTS, fedFundsRateChange: -25 },
+  },
+  {
+    id: "inflation-surprise",
+    label: "Inflation surprise",
+    assumption: "CPI surprise +0.5 percentage points. Other shocks: 0.",
+    values: { ...DEFAULT_MACRO_INPUTS, cpiSurprise: 0.5 },
+  },
+  {
+    id: "oil-shock",
+    label: "Oil shock",
+    assumption: "Oil price +10%. Other shocks: 0.",
+    values: { ...DEFAULT_MACRO_INPUTS, oilPriceChange: 10 },
+  },
+  {
+    id: "growth-slowdown",
+    label: "Growth slowdown",
+    assumption: "GDP growth −0.5 percentage points. Other shocks: 0.",
+    values: { ...DEFAULT_MACRO_INPUTS, gdpGrowthSurprise: -0.5 },
+  },
+];
+
+/** Return the example whose shocks match the form, or null when the form is custom. */
+export function matchingPreset(inputs) {
+  return SCENARIO_PRESETS.find((preset) => inputsMatch(inputs, preset.values)) ?? null;
+}
+
 /** Map displayed shocks to the API without rescaling their units. */
 export function buildScenarioObject(inputs) {
   return {
