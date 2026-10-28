@@ -22,9 +22,9 @@ const styles = {
     flexDirection: "column",
     gap: 4,
   },
-  assetName: { fontSize: 12, color: "var(--text-soft)", fontWeight: 400 },
+  assetName: { fontSize: 12, color: "var(--text-soft)", fontWeight: 400, fontFamily: "'JetBrains Mono', monospace" },
   assetVal: { fontSize: 20, fontWeight: 500, lineHeight: 1.15 },
-  assetUnit: { fontSize: 11, fontWeight: 400 },
+  assetUnit: { fontSize: 11, fontWeight: 400, fontFamily: "'JetBrains Mono', monospace" },
 };
 
 const POS_COLOR = "#1D9E75";
