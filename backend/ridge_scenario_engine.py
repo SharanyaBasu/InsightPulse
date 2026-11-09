@@ -11,6 +11,7 @@ not refresh live market conditions.
 from __future__ import annotations
 
 from functools import lru_cache
+from math import fsum
 from pathlib import Path
 from typing import Any
 
@@ -37,6 +38,20 @@ API_TO_MODEL_SHOCKS = {
     "dxy_change_pct": "dxy_change_pct",
     "vix_change_points": "vix_change_points",
 }
+
+API_INPUT_METADATA = {
+    "fed_funds_change_bps": ("Fed Funds Rate Change", "basis points"),
+    "cpi_surprise_pct": ("CPI Surprise", "percentage points"),
+    "oil_change_pct": ("Oil Price Change", "percent"),
+    "gdp_surprise_pct": ("GDP Growth Surprise", "percentage points"),
+    "unemployment_change_pct": ("Unemployment Change", "percentage points"),
+    "pmi_change": ("PMI Change", "index points"),
+    "dxy_change_pct": ("DXY Change", "percent"),
+    "vix_change_points": ("VIX Change", "index points"),
+}
+
+MODEL_RECONCILIATION_TOLERANCE = 1e-9
+DISPLAY_RECONCILIATION_TOLERANCE = 0.005000001
 
 ASSET_TARGETS = (
     "sp500",
@@ -99,6 +114,64 @@ def _incremental_map(targets: dict[str, Any], names: tuple[str, ...]) -> dict[st
     }
 
 
+def _asset_contribution_map(
+    research_result: dict[str, Any],
+    submitted_inputs: dict[str, Any],
+    displayed_assets: dict[str, float],
+) -> dict[str, Any]:
+    """Build the public contribution contract from this inference result."""
+
+    explanations = research_result.get("explanations", {}).get("targets", {})
+    targets = research_result["targets"]
+    result: dict[str, Any] = {}
+    for asset in ASSET_TARGETS:
+        target_explanation = explanations.get(asset, {})
+        rows = {
+            str(row.get("contract_input")): row
+            for row in target_explanation.get("incremental_contributions", [])
+        }
+        contributions = []
+        for api_key, model_key in API_TO_MODEL_SHOCKS.items():
+            if model_key not in rows:
+                raise ValueError(
+                    f"Model contribution output for {asset} is missing {model_key}."
+                )
+            label, input_unit = API_INPUT_METADATA[api_key]
+            row = rows[model_key]
+            contributions.append(
+                {
+                    "input_key": api_key,
+                    "label": label,
+                    "submitted_value": float(submitted_inputs.get(api_key, 0.0) or 0.0),
+                    "input_unit": input_unit,
+                    "contribution": float(row["contribution"]),
+                }
+            )
+
+        contribution_sum = fsum(row["contribution"] for row in contributions)
+        unrounded_total = float(targets[asset]["incremental_scenario_effect"])
+        displayed_total = float(displayed_assets[asset])
+        reconciliation_error = abs(contribution_sum - unrounded_total)
+        display_reconciliation_error = abs(contribution_sum - displayed_total)
+        if reconciliation_error > MODEL_RECONCILIATION_TOLERANCE:
+            raise ValueError(f"Model contributions do not reconcile for {asset}.")
+        if display_reconciliation_error > DISPLAY_RECONCILIATION_TOLERANCE:
+            raise ValueError(f"Displayed contributions do not reconcile for {asset}.")
+
+        result[asset] = {
+            "unit": str(targets[asset]["unit"]),
+            "unrounded_total": unrounded_total,
+            "displayed_total": displayed_total,
+            "contributions": contributions,
+            "contribution_sum": contribution_sum,
+            "reconciliation_error": reconciliation_error,
+            "reconciliation_tolerance": MODEL_RECONCILIATION_TOLERANCE,
+            "display_reconciliation_error": display_reconciliation_error,
+            "display_rounding_tolerance": DISPLAY_RECONCILIATION_TOLERANCE,
+        }
+    return result
+
+
 def _api_confidence(research_result: dict[str, Any]) -> str:
     """Take the most pessimistic per-target research confidence."""
 
@@ -155,7 +228,10 @@ def _top_incremental_driver_names(research_result: dict[str, Any], limit: int = 
     return ordered
 
 
-def adapt_research_result(research_result: dict[str, Any]) -> dict[str, Any]:
+def adapt_research_result(
+    research_result: dict[str, Any],
+    submitted_inputs: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     """Map Ridge runtime output to ScenarioRunResponse fields."""
 
     targets = research_result["targets"]
@@ -217,6 +293,11 @@ def adapt_research_result(research_result: dict[str, Any]) -> dict[str, Any]:
         "regime": regime,
         "confidence": confidence,
         "asset_deltas": assets,
+        "asset_contributions": _asset_contribution_map(
+            research_result,
+            submitted_inputs or {},
+            assets,
+        ),
         "sector_impacts": sectors,
         "explanation": explanation,
     }
@@ -232,4 +313,4 @@ class RidgeScenarioEngine:
         runtime = _load_runtime(self.bundle_path)
         shocks = map_api_inputs_to_model_shocks(inputs)
         research_result = runtime.predict(shocks)
-        return adapt_research_result(research_result)
+        return adapt_research_result(research_result, submitted_inputs=inputs)

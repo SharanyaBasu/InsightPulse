@@ -48,11 +48,13 @@ def test_run_scenario_returns_required_keys():
         "regime",
         "confidence",
         "asset_deltas",
+        "asset_contributions",
         "sector_impacts",
         "explanation",
     }
     assert result["confidence"] in {"Low", "Medium", "High"}
     assert "sp500" in result["asset_deltas"]
+    assert len(result["asset_contributions"]["sp500"]["contributions"]) == 8
     assert "technology" in result["sector_impacts"]
     assert result["context"]["baseline_date"] == "2026-06-11"
 
@@ -149,6 +151,10 @@ def test_deterministic_rule_engine_still_available():
 
     assert result["regime"] == "Transitional"
     assert result["confidence"] == "Low"
+    for asset, details in result["asset_contributions"].items():
+        assert details["displayed_total"] == result["asset_deltas"][asset]
+        assert details["reconciliation_error"] <= details["reconciliation_tolerance"]
+        assert details["display_reconciliation_error"] <= details["display_rounding_tolerance"]
 
 
 def test_neutral_context_and_tiny_nonzero_shock_are_distinct():

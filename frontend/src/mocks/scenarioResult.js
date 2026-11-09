@@ -9,7 +9,8 @@
  *   unemployment_change_pct, pmi_change, dxy_change_pct, vix_change_points
  *
  * Response body (ScenarioRunResponse):
- *   summary, regime, confidence, asset_deltas, sector_impacts, explanation
+ *   summary, regime, confidence, asset_deltas, asset_contributions,
+ *   sector_impacts, explanation
  *
  * GET /api/scenario is a separate live market delta endpoint and is not used here.
  */
@@ -36,7 +37,7 @@ const SECTOR_LABELS = {
 export function toDeltaAssets(assetDeltas = {}) {
   return Object.entries(assetDeltas).map(([key, value]) => {
     const meta = ASSET_META[key] || { label: key, unit: "%" };
-    return { label: meta.label, value, unit: meta.unit };
+    return { key, label: meta.label, value, unit: meta.unit };
   });
 }
 

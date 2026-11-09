@@ -100,10 +100,48 @@ Positive values represent increases or upside surprises; negative values represe
 | `regime` | Regime associated with the bundled historical model state |
 | `confidence` | Qualitative confidence level for the scenario classification |
 | `asset_deltas` | Projected changes for the S&P 500, NASDAQ, 10-year yield, DXY, gold, and oil |
+| `asset_contributions` | Same-run, per-input Ridge contribution decomposition for every asset result |
 | `sector_impacts` | Projected percentage impacts for technology, energy, financials, utilities, healthcare, and consumer discretionary |
 | `explanation` | Explanation of the model drivers and research limitations |
 
 Values under `asset_deltas` are percentages except for `ten_year_yield_bps`, which is expressed in basis points. Values under `sector_impacts` are percentages.
+
+Each `asset_contributions` entry includes all eight submitted inputs, their
+full-precision signed model contributions, the unrounded model total, the
+two-decimal displayed total, and reconciliation metadata. For example:
+
+```json
+{
+  "asset_contributions": {
+    "sp500": {
+      "unit": "percent",
+      "unrounded_total": -0.734218,
+      "displayed_total": -0.73,
+      "contributions": [
+        {
+          "input_key": "fed_funds_change_bps",
+          "label": "Fed Funds Rate Change",
+          "submitted_value": 50,
+          "input_unit": "basis points",
+          "contribution": -0.214327
+        }
+      ],
+      "contribution_sum": -0.734218,
+      "reconciliation_error": 0.0,
+      "reconciliation_tolerance": 1e-9,
+      "display_reconciliation_error": 0.004218,
+      "display_rounding_tolerance": 0.005000001
+    }
+  }
+}
+```
+
+The API returns all eight contribution rows for each of the six assets; the
+example is abbreviated. Contributions and totals are produced by the same model
+invocation. Full-precision contributions reconcile to the unrounded result
+within `1e-9`; comparison with the two-decimal card allows `0.005000001` output
+units for rounding. Contributions describe predictive Ridge associations and
+must not be interpreted as proven causes.
 
 ### Manual API test
 

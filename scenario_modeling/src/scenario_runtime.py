@@ -1177,6 +1177,20 @@ class ScenarioModelRuntime:
                 raise BundleValidationError(
                     f"Incremental explanation failed for {target}."
                 )
+            incremental_contributions = [
+                {
+                    "contract_input": str(row["contract_input"]),
+                    "feature_name": str(row["feature_name"]),
+                    "feature_unit": str(row["feature_unit"]),
+                    "raw_value_change": float(row["raw_value_change"]),
+                    "contribution": float(row["contribution_change"]),
+                    "causal_effect_claimed": False,
+                }
+                for row in deltas.sort_values("feature_position").to_dict(
+                    orient="records"
+                )
+                if str(row["inference_role"]) == "scenario_shock"
+            ]
             target_unit = str(self.target_registry[target]["unit"])
             top_drivers = {
                 "baseline_positive": self._top_driver_group(
@@ -1287,6 +1301,7 @@ class ScenarioModelRuntime:
                 "incremental_scenario_effect": output[
                     "incremental_scenario_effect"
                 ],
+                "incremental_contributions": incremental_contributions,
                 "contribution_groups": {
                     "baseline": {
                         "model_intercept": float(ridge.intercept_),

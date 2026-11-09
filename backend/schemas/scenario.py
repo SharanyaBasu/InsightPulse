@@ -133,6 +133,41 @@ class AssetProjections(BaseModel):
     oil: float = Field(..., description="Oil projected % change.")
 
 
+class InputContribution(BaseModel):
+    """One submitted scenario input's signed Ridge contribution."""
+
+    input_key: str
+    label: str
+    submitted_value: float
+    input_unit: str
+    contribution: float
+
+
+class AssetContributionDetail(BaseModel):
+    """Full-precision contribution decomposition for one asset result."""
+
+    unit: str
+    unrounded_total: float
+    displayed_total: float
+    contributions: list[InputContribution]
+    contribution_sum: float
+    reconciliation_error: float = Field(ge=0)
+    reconciliation_tolerance: float = Field(ge=0)
+    display_reconciliation_error: float = Field(ge=0)
+    display_rounding_tolerance: float = Field(ge=0)
+
+
+class AssetContributions(BaseModel):
+    """Contribution details keyed identically to ``asset_deltas``."""
+
+    sp500: AssetContributionDetail
+    nasdaq: AssetContributionDetail
+    ten_year_yield_bps: AssetContributionDetail
+    dxy: AssetContributionDetail
+    gold: AssetContributionDetail
+    oil: AssetContributionDetail
+
+
 class SectorProjections(BaseModel):
     """Projected sector % impacts for SectorHeatmap."""
 
@@ -174,6 +209,13 @@ class ScenarioRunResponse(BaseModel):
     asset_deltas: AssetProjections = Field(
         ...,
         description="Projected asset impacts (maps to delta cards).",
+    )
+    asset_contributions: AssetContributions = Field(
+        ...,
+        description=(
+            "Same-run Ridge input contributions for each displayed asset. "
+            "These are predictive associations, not causal effects."
+        ),
     )
     sector_impacts: SectorProjections = Field(
         ...,

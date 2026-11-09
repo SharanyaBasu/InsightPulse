@@ -6,11 +6,55 @@ const snapshot = {
   macro: { cpi: { value: 300 }, unemployment: { value: 4 }, policy_rate: { value: 5 } },
   data_dates: { market: { sp500: '2026-06-11' } },
 };
+
+const contributionInputs = [
+  ['fed_funds_change_bps', 'Fed Funds Rate Change', 'basis points'],
+  ['cpi_surprise_pct', 'CPI Surprise', 'percentage points'],
+  ['oil_change_pct', 'Oil Price Change', 'percent'],
+  ['gdp_surprise_pct', 'GDP Growth Surprise', 'percentage points'],
+  ['unemployment_change_pct', 'Unemployment Change', 'percentage points'],
+  ['pmi_change', 'PMI Change', 'index points'],
+  ['dxy_change_pct', 'DXY Change', 'percent'],
+  ['vix_change_points', 'VIX Change', 'index points'],
+];
+
+function contributionDetail(unit = 'percent', displayedTotal = 0, values = {}, submitted = {}) {
+  const contributions = contributionInputs.map(([input_key, label, input_unit]) => ({
+    input_key,
+    label,
+    input_unit,
+    submitted_value: submitted[input_key] || 0,
+    contribution: values[input_key] || 0,
+  }));
+  const contributionSum = contributions.reduce((sum, row) => sum + row.contribution, 0);
+  return {
+    unit,
+    unrounded_total: contributionSum,
+    displayed_total: displayedTotal,
+    contributions,
+    contribution_sum: contributionSum,
+    reconciliation_error: 0,
+    reconciliation_tolerance: 1e-9,
+    display_reconciliation_error: Math.abs(contributionSum - displayedTotal),
+    display_rounding_tolerance: 0.005000001,
+  };
+}
+
+const neutralContributions = {
+  sp500: contributionDetail(),
+  nasdaq: contributionDetail(),
+  ten_year_yield_bps: contributionDetail('basis_points'),
+  dxy: contributionDetail(),
+  gold: contributionDetail(),
+  oil: contributionDetail(),
+};
+
 const neutral = {
   summary: 'No shocks applied. Results match baseline. Zero means no additional impact, not a prediction that markets will stay flat.',
   regime: 'Low VIX', confidence: 'Low', explanation: 'Fixed historical state.',
   context: { baseline_date: '2026-06-11', horizon_trading_days: 21, effect_type: 'incremental_vs_baseline', neutral_inputs: true },
   asset_deltas: { sp500: 0, nasdaq: 0, ten_year_yield_bps: 0, dxy: 0, gold: 0, oil: 0 },
+  asset_contributions: neutralContributions,
   sector_impacts: { technology: 0, energy: 0, financials: 0, utilities: 0, healthcare: 0, consumer_discretionary: 0 },
 };
 
@@ -38,17 +82,60 @@ test('neutral rendering, historical context and edits before blur', async ({ pag
   await expect(page.locator('main')).not.toContainText('NaN');
   expect(await page.locator('main').evaluate(el => el.scrollWidth <= el.clientWidth + 1)).toBe(true);
   await expect(page.locator('main svg rect').first()).toHaveCSS('fill', 'rgb(52, 59, 70)');
+  const whyButtons = page.getByRole('button', { name: 'Why this result?' });
+  await expect(whyButtons).toHaveCount(6);
+  await whyButtons.nth(0).click();
+  await expect(page.getByRole('heading', { name: 'S&P 500 model contributions' })).toBeVisible();
+  await expect(page.getByText(/predictive associations, not proven causal effects/)).toBeVisible();
+  await expect(page.getByText(/all submitted shocks were neutral/)).toBeVisible();
+  expect(await page.locator('main').evaluate(el => el.scrollWidth <= el.clientWidth + 1)).toBe(true);
+  await whyButtons.nth(1).click();
+  await expect(page.getByRole('heading', { name: 'NASDAQ model contributions' })).toBeVisible();
+  await expect(whyButtons.nth(1)).toHaveAttribute('aria-expanded', 'true');
+  await whyButtons.nth(1).click();
+  await expect(page.getByRole('heading', { name: 'NASDAQ model contributions' })).toHaveCount(0);
 });
 
 test('failed rerun retains the original assumptions', async ({ page }) => {
   await page.getByRole('button', { name: 'RUN SCENARIO', exact: true }).click();
   await expect(page.getByText(neutral.summary)).toBeVisible();
+  await page.getByRole('button', { name: 'Why this result?' }).first().click();
   await page.getByRole('textbox', { name: /Oil Price Change/ }).fill('5');
   await page.route('**/api/scenario/run', route => route.fulfill({ status: 500, json: { detail: 'Test failure' } }));
   await page.getByRole('button', { name: 'RUN SCENARIO', exact: true }).click();
   await expect(page.getByRole('status')).toContainText('Latest run failed');
+  await expect(page.getByRole('heading', { name: 'S&P 500 model contributions' })).toBeVisible();
   await page.getByText(/Displayed run:/).click();
   await expect(page.getByText('Oil Price Change: 0 %', { exact: true })).toBeVisible();
+});
+
+test('mixed model contributions render on both sides of zero', async ({ page }) => {
+  const mixed = {
+    ...neutral,
+    summary: 'Mixed scenario contribution test.',
+    context: { ...neutral.context, neutral_inputs: false },
+    asset_deltas: { ...neutral.asset_deltas, sp500: -0.2 },
+    asset_contributions: {
+      ...neutral.asset_contributions,
+      sp500: contributionDetail(
+        'percent',
+        -0.2,
+        { fed_funds_change_bps: 0.4, vix_change_points: -0.6 },
+        { fed_funds_change_bps: -25, vix_change_points: 10 },
+      ),
+    },
+  };
+  await page.route('**/api/scenario/run', route => route.fulfill({ json: mixed }));
+  await page.getByRole('textbox', { name: /Fed Funds Rate Change/ }).fill('-25');
+  await page.getByRole('textbox', { name: /VIX Change/ }).fill('10');
+  await page.getByRole('button', { name: 'RUN SCENARIO', exact: true }).click();
+  await page.getByRole('button', { name: 'Why this result?' }).first().click();
+
+  const values = page.getByLabel('S&P 500 contribution values');
+  await expect(values.getByText('+0.40 %', { exact: true })).toBeVisible();
+  await expect(values.getByText('-0.60 %', { exact: true })).toBeVisible();
+  await expect(page.locator('#asset-contribution-panel [fill="#1D9E75"]')).not.toHaveCount(0);
+  await expect(page.locator('#asset-contribution-panel [fill="#D85A30"]')).not.toHaveCount(0);
 });
 
 test('edits during a request remain stale; reset prevents a late response restoring results', async ({ page }) => {
@@ -98,6 +185,11 @@ test('changed scenario submits every input in canonical units and replaces neutr
     explanation: 'The displayed results use the submitted 25% oil shock.',
     context: { ...neutral.context, neutral_inputs: false },
     asset_deltas: { ...neutral.asset_deltas, oil: 12.34, ten_year_yield_bps: 7.89 },
+    asset_contributions: {
+      ...neutral.asset_contributions,
+      oil: contributionDetail('percent', 12.34, { oil_change_pct: 12.34 }, { oil_change_pct: 25 }),
+      ten_year_yield_bps: contributionDetail('basis_points', 7.89, { oil_change_pct: 7.89 }, { oil_change_pct: 25 }),
+    },
     sector_impacts: { ...neutral.sector_impacts, energy: 4.56 },
   };
   let submitted;
@@ -112,8 +204,13 @@ test('changed scenario submits every input in canonical units and replaces neutr
   expect(submitted).toEqual({ fed_funds_change_bps: 0, cpi_surprise_pct: 0, oil_change_pct: 25, gdp_surprise_pct: 0, unemployment_change_pct: 0, pmi_change: 0, dxy_change_pct: 0, vix_change_points: 0 });
   await expect(page.getByRole('status')).toContainText('Results match the current inputs');
   await expect(page.getByText(neutral.summary)).toHaveCount(0);
-  await expect(page.getByText('+12.34 %', { exact: true })).toBeVisible();
+  await expect(page.getByText('+12.34 %', { exact: true }).first()).toBeVisible();
   await expect(page.getByText('+7.89 bps', { exact: true })).toBeVisible();
+  const oilWhy = page.getByRole('button', { name: 'Why this result?' }).nth(5);
+  await oilWhy.click();
+  await expect(page.getByRole('heading', { name: 'Oil model contributions' })).toBeVisible();
+  await expect(page.getByLabel('Oil contribution values').getByText('+12.34 %', { exact: true })).toBeVisible();
+  await expect(page.getByText(/Contribution sum:/)).toBeVisible();
   await page.getByText(/Displayed run:/).click();
   await expect(page.getByText('Oil Price Change: 25 %', { exact: true })).toBeVisible();
 });

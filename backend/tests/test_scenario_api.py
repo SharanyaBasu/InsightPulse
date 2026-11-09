@@ -54,6 +54,11 @@ def test_neutral_and_changed_scenarios_return_real_model_results(client):
     baseline = neutral.json()
     assert all(value == 0 for value in baseline['asset_deltas'].values())
     assert all(value == 0 for value in baseline['sector_impacts'].values())
+    assert set(baseline['asset_contributions']) == set(baseline['asset_deltas'])
+    for asset, details in baseline['asset_contributions'].items():
+        assert len(details['contributions']) == 8
+        assert details['contribution_sum'] == 0
+        assert details['displayed_total'] == baseline['asset_deltas'][asset]
     changed = client.post('/api/scenario/run', json={'oil_change_pct': 25})
     assert changed.status_code == 200
     result = changed.json()
@@ -62,6 +67,31 @@ def test_neutral_and_changed_scenarios_return_real_model_results(client):
     assert result['context'] == {**baseline['context'], 'neutral_inputs': False}
     assert result['context']['baseline_date'] == '2026-06-11'
     assert result['context']['horizon_trading_days'] == 21
+    for asset, details in result['asset_contributions'].items():
+        assert len(details['contributions']) == 8
+        assert details['reconciliation_error'] <= details['reconciliation_tolerance']
+        assert details['display_reconciliation_error'] <= details['display_rounding_tolerance']
+        assert details['displayed_total'] == result['asset_deltas'][asset]
+        oil = next(row for row in details['contributions'] if row['input_key'] == 'oil_change_pct')
+        assert oil['submitted_value'] == 25
+        assert oil['input_unit'] == 'percent'
+
+
+def test_mixed_shock_contributions_include_positive_and_negative_associations(client):
+    response = client.post(
+        '/api/scenario/run',
+        json={
+            'fed_funds_change_bps': -25,
+            'oil_change_pct': 5,
+            'vix_change_points': 10,
+        },
+    )
+    assert response.status_code == 200, response.text
+    details = response.json()['asset_contributions']['sp500']
+    values = [row['contribution'] for row in details['contributions']]
+    assert any(value > 0 for value in values)
+    assert any(value < 0 for value in values)
+    assert abs(sum(values) - details['unrounded_total']) <= 1e-9
 
 
 def test_missing_model_returns_actionable_service_unavailable(client, monkeypatch, tmp_path):

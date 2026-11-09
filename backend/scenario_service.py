@@ -8,9 +8,15 @@ tests and local fallback via ``engine=``.
 
 from __future__ import annotations
 
+from math import fsum
 from typing import Protocol
 
-from ridge_scenario_engine import RidgeScenarioEngine
+from ridge_scenario_engine import (
+    API_INPUT_METADATA,
+    DISPLAY_RECONCILIATION_TOLERANCE,
+    MODEL_RECONCILIATION_TOLERANCE,
+    RidgeScenarioEngine,
+)
 
 # ---------------------------------------------------------------------------
 # Contract keys (must match schemas.scenario.ScenarioRunResponse)
@@ -21,6 +27,7 @@ RESPONSE_KEYS = (
     "regime",
     "confidence",
     "asset_deltas",
+    "asset_contributions",
     "sector_impacts",
     "explanation",
 )
@@ -237,6 +244,53 @@ def _project_assets(normalized: dict[str, float]) -> dict[str, float]:
     return assets
 
 
+def _fallback_asset_contributions(
+    inputs: dict,
+    normalized: dict[str, float],
+    displayed_assets: dict[str, float],
+) -> dict[str, dict]:
+    """Build the fallback engine's contribution response without another run."""
+
+    result = {}
+    for asset, coefficients in ASSET_COEFFICIENTS.items():
+        raw = {
+            key: coefficients.get(key, 0.0) * normalized.get(key, 0.0)
+            for key in INPUT_KEYS
+        }
+        raw_sum = fsum(raw.values())
+        low, high = ASSET_OUTPUT_BOUNDS[asset]
+        unrounded_total = _clamp(raw_sum, low, high)
+        if raw_sum != unrounded_total and raw_sum != 0:
+            scale = unrounded_total / raw_sum
+            raw = {key: value * scale for key, value in raw.items()}
+        contribution_sum = fsum(raw.values())
+        contributions = []
+        for key in INPUT_KEYS:
+            label, input_unit = API_INPUT_METADATA[key]
+            contributions.append(
+                {
+                    "input_key": key,
+                    "label": label,
+                    "submitted_value": float(inputs.get(key, 0.0) or 0.0),
+                    "input_unit": input_unit,
+                    "contribution": raw[key],
+                }
+            )
+        displayed_total = float(displayed_assets[asset])
+        result[asset] = {
+            "unit": "basis_points" if asset == "ten_year_yield_bps" else "percent",
+            "unrounded_total": unrounded_total,
+            "displayed_total": displayed_total,
+            "contributions": contributions,
+            "contribution_sum": contribution_sum,
+            "reconciliation_error": abs(contribution_sum - unrounded_total),
+            "reconciliation_tolerance": MODEL_RECONCILIATION_TOLERANCE,
+            "display_reconciliation_error": abs(contribution_sum - displayed_total),
+            "display_rounding_tolerance": DISPLAY_RECONCILIATION_TOLERANCE,
+        }
+    return result
+
+
 def _project_sectors(normalized: dict[str, float]) -> dict[str, float]:
     low, high = SECTOR_OUTPUT_BOUNDS
     sectors: dict[str, float] = {}
@@ -374,6 +428,9 @@ class DeterministicRuleEngine:
                 "regime": regime,
                 "confidence": confidence,
                 "asset_deltas": assets,
+                "asset_contributions": _fallback_asset_contributions(
+                    inputs, normalized, assets
+                ),
                 "sector_impacts": sectors,
                 "explanation": _build_explanation(regime, drivers, assets, sectors),
             }

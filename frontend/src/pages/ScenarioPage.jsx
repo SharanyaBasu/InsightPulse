@@ -156,7 +156,10 @@ export default function ScenarioPage() {
                 regime={scenarioResult.regime}
                 confidence={scenarioResult.confidence}
               />
-              <ScenarioDeltaCards assets={toDeltaAssets(scenarioResult.asset_deltas)} />
+              <ScenarioDeltaCards
+                assets={toDeltaAssets(scenarioResult.asset_deltas)}
+                contributions={scenarioResult.asset_contributions}
+              />
               <SectorHeatmap scenario horizon={scenarioResult.context?.horizon_trading_days} sectors={toHeatmapSectors(scenarioResult.sector_impacts)} />
               <ExplanationBox text={scenarioResult.explanation} />
             </>

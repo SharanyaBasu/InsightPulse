@@ -13,6 +13,7 @@ REQUIRED = [
     "regime",
     "confidence",
     "asset_deltas",
+    "asset_contributions",
     "sector_impacts",
     "explanation",
 ]
@@ -92,11 +93,23 @@ def validate_response(body):
     if body.get("confidence") not in ("Low", "Medium", "High"):
         return False, f"bad confidence {body.get('confidence')}"
     ad = body.get("asset_deltas") or {}
+    ac = body.get("asset_contributions") or {}
     si = body.get("sector_impacts") or {}
     miss_a = [k for k in ASSET_KEYS if k not in ad]
     miss_s = [k for k in SECTOR_KEYS if k not in si]
     if miss_a or miss_s:
         return False, f"missing assets={miss_a} sectors={miss_s}"
+    miss_c = [k for k in ASSET_KEYS if k not in ac]
+    if miss_c:
+        return False, f"missing asset contributions={miss_c}"
+    for key in ASSET_KEYS:
+        detail = ac[key]
+        if len(detail.get("contributions", [])) != len(BOUNDS):
+            return False, f"{key} does not contain all input contributions"
+        if detail.get("reconciliation_error", float("inf")) > detail.get("reconciliation_tolerance", 0):
+            return False, f"{key} raw contributions do not reconcile"
+        if detail.get("display_reconciliation_error", float("inf")) > detail.get("display_rounding_tolerance", 0):
+            return False, f"{key} displayed contributions do not reconcile"
     for k, v in {**ad, **si}.items():
         if not isinstance(v, (int, float)):
             return False, f"{k} not numeric"
