@@ -5,6 +5,8 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 
+from market_state_service import _dependency_names
+
 MOOD_PROB_TOLERANCE = 0.01
 NUMERIC_TOLERANCE = 0.25
 
@@ -292,37 +294,67 @@ def _format_driver_clause(driver: dict, evidence: dict) -> tuple[str, str | None
     return f"{name}: {value}{suffix}", eid if isinstance(eid, str) else None
 
 
-def _format_asset_class_bullet(row: dict) -> list[str]:
-    """Format asset class members as summary bullets."""
+def _measurement_text(name: str, record: dict) -> str:
+    """Format one evidence value without quoting internal scores."""
+
+    value = record.get("display_value")
+    unit = record.get("unit") or ""
+    if value is None:
+        return name
+    if unit == "pct":
+        return f"{name}: {value}%"
+    if unit == "pct_annualized":
+        return f"{name}: {value}% annualized"
+    if unit:
+        return f"{name}: {value} {unit}"
+    return f"{name}: {value}"
+
+
+def _cited_claim(text: str, evidence_id, evidence: dict) -> dict | str:
+    """Cite a claim only when its evidence record exists."""
+
+    if isinstance(evidence_id, str) and evidence_id in evidence:
+        return {"text": text, "evidence_ids": [evidence_id]}
+    return text
+
+
+def _format_asset_class_bullet(row: dict, evidence: dict) -> list[dict | str]:
+    """Format asset class members as cited summary claims."""
 
     asset_class = row.get("class", "unknown")
     bullets = []
     for member in row.get("members", []):
         metric = member.get("metric") or member.get("evidence_id")
-        return_pct = member.get("return_5d_pct")
-        if metric and return_pct is not None:
-            bullets.append(f"{asset_class} {metric}: {return_pct}%")
+        evidence_id = member.get("evidence_id") or metric
+        if not metric:
+            continue
+        record = evidence.get(evidence_id) if isinstance(evidence_id, str) else None
+        if isinstance(record, dict) and record.get("display_value") is not None:
+            text = f"{asset_class} {_measurement_text(metric, record)}"
+        elif member.get("return_5d_pct") is not None:
+            text = f"{asset_class} {metric}: {member.get('return_5d_pct')}%"
+        else:
+            continue
+        bullets.append(_cited_claim(text, evidence_id, evidence))
     return bullets
 
 
-def _format_stress_flag_bullet(flag: dict) -> str:
-    """Format an active stress flag as a summary bullet."""
+def _format_stress_flag_bullet(flag: dict, evidence: dict) -> dict | str:
+    """Format an active stress flag as a cited summary claim."""
 
     name = flag.get("name", "unknown")
     severity = flag.get("severity")
-    if severity:
-        return f"{name} ({severity})"
-    return name
+    text = f"{name} ({severity})" if severity else name
+    return _cited_claim(text, flag.get("evidence_id"), evidence)
 
 
-def _format_mood_driver_bullet(feature: dict) -> str:
-    """Format a mood feature as a summary bullet."""
+def _format_mood_driver_bullet(feature: dict, evidence: dict) -> dict | str:
+    """Format a mood feature as a cited summary claim."""
 
     name = feature.get("name", "unknown")
-    contribution = feature.get("contribution")
-    if contribution is None:
-        return name
-    return f"{name} (contribution {contribution})"
+    record = evidence.get(name) if isinstance(name, str) else None
+    text = _measurement_text(name, record) if isinstance(record, dict) else name
+    return _cited_claim(text, name, evidence)
 
 
 def _build_regime_summary(market_state: dict) -> dict | str:
@@ -368,21 +400,22 @@ def build_fallback_summary(market_state: dict) -> dict:
     as_of = market_state.get("as_of", "")
     mood = market_state.get("mood_5d") or {}
 
+    evidence = market_state.get("evidence") or {}
     asset_snapshot = market_state.get("asset_class_snapshot") or []
     key_changes = [
         bullet
         for row in asset_snapshot
-        for bullet in _format_asset_class_bullet(row)
+        for bullet in _format_asset_class_bullet(row, evidence)
     ]
 
     stress_flags = [
         flag for flag in (market_state.get("stress_flags") or [])
         if flag.get("active", True)
     ]
-    risks_to_watch = [_format_stress_flag_bullet(flag) for flag in stress_flags]
+    risks_to_watch = [_format_stress_flag_bullet(flag, evidence) for flag in stress_flags]
 
     top_features = mood.get("top_features") or []
-    mood_drivers = [_format_mood_driver_bullet(feature) for feature in top_features]
+    mood_drivers = [_format_mood_driver_bullet(feature, evidence) for feature in top_features]
 
     return {
         "headline": f"Markets in {regime_label} regime as of {as_of}",
@@ -398,3 +431,71 @@ def build_fallback_summary(market_state: dict) -> dict:
         "as_of": as_of,
         "regime_label": regime_label,
     }
+
+
+def _claim_evidence_ids(item) -> list[str]:
+    """Collect evidence IDs from one claim or a list of claims."""
+
+    if isinstance(item, list):
+        ids: list[str] = []
+        for entry in item:
+            ids.extend(_claim_evidence_ids(entry))
+        return ids
+    if not isinstance(item, dict):
+        return []
+    return [
+        evidence_id
+        for evidence_id in (item.get("evidence_ids") or [])
+        if isinstance(evidence_id, str) and evidence_id
+    ]
+
+
+def attach_cited_evidence(
+    summary: dict,
+    market_state: dict | None,
+    dependency_index: dict | None = None,
+) -> dict:
+    """Add the evidence records cited by a summary without changing its text.
+
+    Args:
+        summary: Generated summary, including claims that may carry evidence IDs.
+        market_state: Market state whose evidence map is the source of those IDs.
+        dependency_index: Optional metric rows used when a stored record has no source inputs.
+
+    Returns:
+        A copy of the summary with an evidence map limited to cited, available records.
+    """
+
+    payload = dict(summary)
+    records = (market_state or {}).get("evidence") or {}
+    dependencies_by_id = dependency_index or {}
+    cited: list[str] = []
+    for item in (
+        payload.get("regime_summary"),
+        payload.get("key_changes"),
+        payload.get("risks_to_watch"),
+        (payload.get("mood_5d") or {}).get("drivers") if isinstance(payload.get("mood_5d"), dict) else None,
+    ):
+        for evidence_id in _claim_evidence_ids(item):
+            if evidence_id not in cited:
+                cited.append(evidence_id)
+
+    evidence = {}
+    for evidence_id in cited:
+        row = records.get(evidence_id)
+        if not isinstance(row, dict):
+            continue
+        dependencies = _dependency_names(row.get("source_dependencies"))
+        if not dependencies:
+            metric = dependencies_by_id.get(evidence_id) or {}
+            dependencies = _dependency_names(metric.get("source_dependencies"))
+        evidence[evidence_id] = {
+            "display_value": row.get("display_value"),
+            "unit": row.get("unit"),
+            "window": row.get("window"),
+            "timestamp": row.get("timestamp"),
+            "source": row.get("source") or "calculated_metrics",
+            "source_dependencies": dependencies,
+        }
+    payload["evidence"] = evidence
+    return payload

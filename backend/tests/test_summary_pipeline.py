@@ -78,6 +78,7 @@ def test_concurrent_summary_is_rejected_and_success_is_cached(summary_db, monkey
     cached = app.summary_daily()
     assert len(calls) == 1
     assert cached['data_as_of']['latest'] == '2026-10-09'
+    assert cached['evidence'] == {}
 
 
 def test_generation_failure_releases_lock_and_returns_503(summary_db, monkeypatch):

@@ -18,6 +18,7 @@ from fastapi.responses import JSONResponse
 from overview_service import build_overview_snapshot
 from market_state_service import build_market_state
 from llm_summary import generate_summary_with_guardrail
+from summary_validator import attach_cited_evidence
 from datetime import date
 from schemas.scenario import ScenarioRunRequest, ScenarioRunResponse
 from scenario_service import run_scenario as run_scenario_engine
@@ -208,14 +209,47 @@ def compute_daily(skip_ingestion: bool = False):
 _summary_lock = Lock()
 
 
+def _stored_market_state(db: Session) -> dict:
+    """Read today's market state without failing the summary when it is absent."""
+
+    try:
+        row = db.query(MarketState).filter(MarketState.date == date.today()).first()
+    except Exception:
+        db.rollback()
+        return {}
+    data = getattr(row, "data", None)
+    return data if isinstance(data, dict) else {}
+
+
+def _stored_metric_dependencies(db: Session) -> dict:
+    """Read metric source inputs when the calculated-metric table is available."""
+
+    try:
+        from services.metric_loader import load_latest_calculated_metrics
+
+        return load_latest_calculated_metrics(db)
+    except Exception:
+        db.rollback()
+        return {}
+
+
+def _summary_with_evidence(summary, db: Session, market_state: dict | None = None):
+    """Return a summary copy whose evidence map matches the cited market records."""
+
+    if not isinstance(summary, dict):
+        return summary
+    state = market_state if isinstance(market_state, dict) else _stored_market_state(db)
+    return attach_cited_evidence(summary, state, _stored_metric_dependencies(db))
+
+
 @app.get("/api/summary/daily")
 def summary_daily(refresh_data: bool = False):
     """Generate once per day from stored evidence; reject overlapping work promptly."""
     if not refresh_data:
         with SessionLocal() as cached_db:
             cached = cached_db.query(MarketSummary).filter(MarketSummary.date == date.today()).first()
-            if cached:
-                return cached.summary
+            if cached and isinstance(cached.summary, dict):
+                return _summary_with_evidence(dict(cached.summary), cached_db)
     if not _summary_lock.acquire(blocking=False):
         raise HTTPException(503, "A market summary is already being generated. Retry shortly.", headers={"Retry-After": "5"})
     try:
@@ -224,8 +258,8 @@ def summary_daily(refresh_data: bool = False):
             today = date.today()
 
             existing_summary = db.query(MarketSummary).filter(MarketSummary.date == today).first()
-            if existing_summary and not refresh_data:
-                return existing_summary.summary
+            if existing_summary and not refresh_data and isinstance(existing_summary.summary, dict):
+                return _summary_with_evidence(dict(existing_summary.summary), db)
 
             market_state = _get_or_compute_today_market_state(db, run_ingestion=refresh_data)
             summary = generate_summary_with_guardrail(market_state)
@@ -242,11 +276,11 @@ def summary_daily(refresh_data: bool = False):
             except IntegrityError:
                 db.rollback()
                 existing_summary = db.query(MarketSummary).filter(MarketSummary.date == today).first()
-                if existing_summary:
-                    return existing_summary.summary
+                if existing_summary and isinstance(existing_summary.summary, dict):
+                    return _summary_with_evidence(dict(existing_summary.summary), db)
                 raise
 
-            return summary
+            return _summary_with_evidence(summary, db, market_state)
         finally:
             db.close()
 

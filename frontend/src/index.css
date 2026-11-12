@@ -158,6 +158,18 @@ main { scroll-behavior: smooth; }
 .pulse-regime h3 { font-size: 0.68rem; color: var(--text-mute); margin-bottom: 0.65rem; text-transform: uppercase; letter-spacing: 0.1em; }
 .narrative-details { margin-top: 1rem; border-top: 1px solid var(--panel-border); padding-top: 0.85rem; }
 .narrative-details summary { color: var(--cyan); font-size: 0.75rem; min-height: 32px; }
+.claim { margin: 0 0 0.45rem; min-width: 0; }
+.claim > summary { display: flex; gap: 0.45rem; align-items: baseline; color: var(--text-soft); font-size: 0.78rem; line-height: 1.55; }
+.claim > summary::-webkit-details-marker { display: none; }
+.claim > summary::marker { content: ""; }
+.claim > summary::before { content: "▸"; color: var(--text-mute); flex: none; }
+.claim[open] > summary::before { content: "▾"; }
+.claim-evidence { margin: 0.45rem 0 0.2rem; padding: 0.55rem 0.7rem; list-style: none; border: 1px solid var(--panel-border); border-radius: var(--radius); background: rgba(0, 212, 255, 0.04); }
+.claim-evidence li { display: grid; gap: 0.12rem; margin: 0 0 0.55rem; font-size: 0.72rem; color: var(--text-mute); }
+.claim-evidence li:last-child { margin-bottom: 0; }
+.claim-evidence strong { color: var(--text); font-size: 0.75rem; }
+.claim-id { font-size: 0.65rem; }
+.claim-note { margin: 0.35rem 0 0.55rem; color: var(--text-mute); font-size: 0.72rem; line-height: 1.45; }
 .briefing-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; }
 .section-heading { display: flex; align-items: baseline; flex-wrap: wrap; justify-content: space-between; gap: 0.5rem; padding-top: 0.5rem; }
 .section-heading h2 { font: 600 1.1rem system-ui, sans-serif; }

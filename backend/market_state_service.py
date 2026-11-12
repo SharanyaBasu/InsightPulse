@@ -1,5 +1,6 @@
 """Assemble daily MarketState from calculated metrics."""
 
+import json
 from datetime import date
 
 from sqlalchemy.orm import Session
@@ -83,6 +84,22 @@ def _display_value(metric_name: str, value: float):
     if "volatility" in metric_name:
         return round(value * 100, 2)
     return round(value, 4)
+
+
+def _dependency_names(raw) -> list[str]:
+    """Normalize stored source inputs to a list of names."""
+
+    if isinstance(raw, list):
+        values = raw
+    elif isinstance(raw, str) and raw.strip():
+        try:
+            parsed = json.loads(raw)
+        except json.JSONDecodeError:
+            return [raw]
+        values = parsed if isinstance(parsed, list) else [raw]
+    else:
+        return []
+    return [item for item in values if isinstance(item, str) and item]
 
 
 def _asset_from_metric(metric_name: str):
@@ -356,6 +373,7 @@ def _build_evidence(metrics: dict, evidence_ids: set[str]) -> dict:
             "window": row.get("window"),
             "timestamp": row.get("timestamp"),
             "source": "calculated_metrics",
+            "source_dependencies": _dependency_names(row.get("source_dependencies")),
         }
     return evidence
 

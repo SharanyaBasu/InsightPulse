@@ -70,3 +70,47 @@ test('an in-progress job is retried automatically using Retry-After', async ({ p
   await expect(page.getByText('Completed background summary')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Retry', exact: true })).toHaveCount(0);
 });
+
+test('supported claims reveal matching evidence and the verified badge is not a forecast', async ({ page }) => {
+  const summary = {
+    headline: 'The dollar strengthened',
+    validation: { status: 'verified' },
+    data_as_of: { oldest: '2026-06-10', latest: '2026-06-11' },
+    regime_summary: {
+      text: 'The dollar strengthened over five days.',
+      evidence_ids: ['usd_index_5d_return'],
+    },
+    key_changes: [{ text: 'This line has no recorded indicator.', evidence_ids: [] }],
+    risks_to_watch: [],
+    mood_5d: { label: 'neutral', probability: 0.5, drivers: [] },
+    limitations: ['Past moves can reverse.'],
+    evidence: {
+      usd_index_5d_return: {
+        display_value: 0.8,
+        unit: 'pct',
+        window: '5d',
+        timestamp: '2026-06-11T00:00:00',
+        source: 'calculated_metrics',
+        source_dependencies: ['market_data'],
+      },
+    },
+  };
+  await page.route('**/api/**', route => {
+    if (route.request().url().endsWith('/overview')) return route.fulfill({ json: overview });
+    if (route.request().url().endsWith('/summary/daily')) return route.fulfill({ json: summary });
+    return route.fulfill({ json: [] });
+  });
+  await page.goto('/');
+  await expect(page.getByText('Not individually sourced. The claims below carry the supporting indicators.')).toBeVisible();
+  await expect(page.getByText("Checked against today's recorded indicators. Not a prediction or a guarantee.")).toBeVisible();
+  await page.getByText('The dollar strengthened over five days.', { exact: true }).click();
+  await expect(page.getByText('Dollar index, 5-day return')).toBeVisible();
+  await expect(page.getByText('0.8%', { exact: true })).toBeVisible();
+  await expect(page.getByText('5-day window', { exact: true })).toBeVisible();
+  await expect(page.getByText('Observed 2026-06-11', { exact: true })).toBeVisible();
+  await expect(page.getByText('Source: market_data', { exact: true })).toBeVisible();
+  await page.getByText('Read the briefing', { exact: false }).click();
+  await page.getByText('This line has no recorded indicator.', { exact: true }).click();
+  await expect(page.getByText('No supporting evidence', { exact: true })).toBeVisible();
+  await expect(page.getByText('Past moves can reverse.', { exact: true })).toBeVisible();
+});

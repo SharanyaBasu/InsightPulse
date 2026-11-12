@@ -162,3 +162,49 @@ def test_fallback_summary_passes_validation():
 
     assert result.passed
     assert result.errors == []
+    assert fallback["key_changes"][0]["evidence_ids"] == ["sp500_5d_return"]
+    assert fallback["key_changes"][1]["evidence_ids"] == ["nasdaq_5d_return"]
+    assert fallback["mood_5d"]["drivers"][0]["evidence_ids"] == ["sp500_5d_return"]
+    assert "contribution" not in fallback["mood_5d"]["drivers"][0]["text"]
+
+
+def test_fallback_risk_cites_the_active_stress_flag():
+    state = base_market_state(stress_flags=[{
+        "name": "vol_spike",
+        "active": True,
+        "severity": "high",
+        "evidence_id": "vix_20d_volatility",
+    }])
+
+    fallback = build_fallback_summary(state)
+
+    assert fallback["risks_to_watch"] == [{
+        "text": "vol_spike (high)",
+        "evidence_ids": ["vix_20d_volatility"],
+    }]
+    assert validate_summary(state, fallback).passed
+
+
+def test_cited_evidence_contains_only_available_matching_records():
+    from summary_validator import attach_cited_evidence
+
+    summary = valid_summary()
+    summary["key_changes"][0]["evidence_ids"] = ["missing_metric"]
+    state = base_market_state()
+    state["evidence"]["usd_index_5d_return"] = {
+        "display_value": 0.8,
+        "unit": "pct",
+        "window": "5d",
+        "timestamp": "2026-06-11T00:00:00",
+        "source": "calculated_metrics",
+        "source_dependencies": ["market_data"],
+    }
+    summary["regime_summary"]["evidence_ids"] = ["usd_index_5d_return"]
+
+    attached = attach_cited_evidence(summary, state)
+
+    assert attached["evidence"]["usd_index_5d_return"] == state["evidence"]["usd_index_5d_return"]
+    assert "missing_metric" not in attached["evidence"]
+    assert "sp500_5d_return" in attached["evidence"]
+    assert "evidence" not in summary
+    assert attached["headline"] == summary["headline"]

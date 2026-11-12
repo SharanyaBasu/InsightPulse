@@ -4,6 +4,116 @@ function bulletText(item) {
   return typeof item === "string" ? item : item?.text ?? "";
 }
 
+function evidenceIds(item) {
+  if (!item || typeof item !== "object" || !Array.isArray(item.evidence_ids)) return [];
+  return item.evidence_ids.filter((id) => typeof id === "string" && id);
+}
+
+const ASSET_LABELS = {
+  sp500: "S&P 500",
+  nasdaq: "NASDAQ",
+  usd_index: "Dollar index",
+  dxy: "Dollar index",
+  vix: "VIX",
+  tlt: "Treasury bonds",
+  gold: "Gold",
+  bitcoin: "Bitcoin",
+  ethereum: "Ethereum",
+};
+
+const MEASURE_LABELS = [
+  ["5d_return", "5-day return"],
+  ["1d_return", "1-day return"],
+  ["20d_volatility", "20-day volatility"],
+  ["drawdown_from_peak", "drawdown from peak"],
+  ["price_zscore_252d", "price z-score"],
+  ["ma_distance_50d", "distance from the 50-day average"],
+  ["ma_distance_200d", "distance from the 200-day average"],
+];
+
+function indicatorLabel(id) {
+  if (id === "yield_curve_slope_10y_2y") return "10-year minus 2-year yield slope";
+  if (id === "real_rate_proxy") return "Real rate proxy";
+  if (id === "btc_eth_ratio") return "Bitcoin/Ethereum ratio";
+  for (const [asset, label] of Object.entries(ASSET_LABELS)) {
+    if (id === asset || id.startsWith(`${asset}_`)) {
+      const measure = MEASURE_LABELS.find(([key]) => id.slice(asset.length + 1) === key);
+      return measure ? `${label}, ${measure[1]}` : label;
+    }
+  }
+  return id.replaceAll("_", " ");
+}
+
+function formatMeasurement(row) {
+  if (row.display_value == null || row.display_value === "") return "Value not recorded";
+  const numeric = typeof row.display_value === "number" ? row.display_value : Number(row.display_value);
+  const shown = Number.isFinite(numeric)
+    ? numeric.toLocaleString("en-US", { maximumFractionDigits: 3 })
+    : String(row.display_value);
+  if (row.unit === "pct") return `${shown}%`;
+  if (row.unit === "pct_annualized") return `${shown}% annualized`;
+  if (row.unit && row.unit !== "level") return `${shown} ${row.unit}`;
+  return shown;
+}
+
+function formatPeriod(window) {
+  if (!window) return "Period not recorded";
+  const days = String(window).match(/^(\d+)d$/);
+  if (days) return `${days[1]}-day window`;
+  if (window === "1y") return "1-year window";
+  if (window === "available_history") return "Available history";
+  return String(window);
+}
+
+function formatObserved(timestamp) {
+  if (!timestamp) return "Date not recorded";
+  const match = String(timestamp).match(/\d{4}-\d{2}-\d{2}/);
+  return match ? match[0] : String(timestamp);
+}
+
+function formatSource(row) {
+  const dependencies = Array.isArray(row.source_dependencies)
+    ? row.source_dependencies.filter((item) => typeof item === "string" && item)
+    : [];
+  if (dependencies.length) return dependencies.join(", ");
+  if (typeof row.source === "string" && row.source) return row.source.replaceAll("_", " ");
+  return "calculated metrics";
+}
+
+function EvidenceList({ ids, evidence }) {
+  const resolved = ids
+    .map((id) => [id, evidence?.[id]])
+    .filter(([, row]) => row && typeof row === "object");
+  if (!resolved.length) {
+    return <p className="claim-note">No supporting evidence</p>;
+  }
+  return (
+    <ul className="claim-evidence">
+      {resolved.map(([id, row]) => (
+        <li key={id}>
+          <strong>{indicatorLabel(id)}</strong>
+          <span>{formatMeasurement(row)}</span>
+          <span>{formatPeriod(row.window)}</span>
+          <span>Observed {formatObserved(row.timestamp)}</span>
+          <span>Source: {formatSource(row)}</span>
+          <span className="claim-id">{id}</span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function Claim({ item, evidence }) {
+  const text = bulletText(item);
+  if (!text) return null;
+  return (
+    <details className="claim">
+      <summary>{text}</summary>
+      <EvidenceList ids={evidenceIds(item)} evidence={evidence} />
+    </details>
+  );
+}
+
 const sectionTitleStyle = (accent) => ({
   fontSize: "0.65rem",
   fontWeight: 600,
@@ -13,59 +123,30 @@ const sectionTitleStyle = (accent) => ({
   marginBottom: "0.35rem",
 });
 
-function BulletSection({ title, items, accent = "var(--cyan)", paragraph = false }) {
-  if (paragraph) {
-    if (Array.isArray(items)) {
-      return (
-        <BulletSection title={title} items={items} accent={accent} paragraph={false} />
-      );
-    }
+function BulletSection({ title, items, accent = "var(--cyan)", evidence = {}, sourced = true }) {
+  const claims = (Array.isArray(items) ? items : items ? [items] : [])
+    .map((item, index) => ({ item, index }))
+    .filter(({ item }) => bulletText(item));
 
-    const text = bulletText(items);
-    if (!text) return null;
-
-    return (
-      <div style={{ marginTop: "0.65rem" }}>
-        <div style={sectionTitleStyle(accent)}>{title}</div>
-        <p
-          style={{
-            color: "var(--text-soft)",
-            fontSize: "0.78rem",
-            lineHeight: 1.55,
-            margin: 0,
-          }}
-        >
-          {text}
-        </p>
-      </div>
-    );
-  }
-
-  if (!items?.length) return null;
+  if (!claims.length) return null;
 
   return (
     <div style={{ marginTop: "0.65rem" }}>
-        <div style={sectionTitleStyle(accent)}>{title}</div>
-      <ul style={{ margin: 0, paddingLeft: "1.1rem", listStyle: "disc" }}>
-        {items.map((item, index) => (
-          <li
-            key={`${title}-${index}`}
-            style={{
-              color: "var(--text-soft)",
-              fontSize: "0.78rem",
-              lineHeight: 1.55,
-              marginBottom: "0.25rem",
-            }}
-          >
+      <div style={sectionTitleStyle(accent)}>{title}</div>
+      {claims.map(({ item, index }) => (
+        sourced ? (
+          <Claim key={`${title}-${index}`} item={item} evidence={evidence} />
+        ) : (
+          <p key={`${title}-${index}`} className="claim-note" style={{ color: "var(--text-soft)" }}>
             {bulletText(item)}
-          </li>
-        ))}
-      </ul>
+          </p>
+        )
+      ))}
     </div>
   );
 }
 
-function MoodStrip({ mood }) {
+function MoodStrip({ mood, evidence }) {
   if (!mood) return null;
 
   const label = mood.label || "neutral";
@@ -102,9 +183,11 @@ function MoodStrip({ mood }) {
         <span style={{ color: "var(--text-soft)" }}>confidence {prob}</span>
       )}
       {mood.drivers?.length > 0 && (
-        <span style={{ color: "var(--text-mute)", flex: "1 1 100%" }}>
-          {mood.drivers.map(bulletText).join(" · ")}
-        </span>
+        <div style={{ flex: "1 1 100%" }}>
+          {mood.drivers.map((driver, index) => (
+            <Claim key={`mood-${index}`} item={driver} evidence={evidence} />
+          ))}
+        </div>
       )}
     </div>
   );
@@ -226,12 +309,15 @@ export default function MarketSummary({ summary, loading, error, onRetry }) {
     validationStatus === "verified"
       ? "var(--green)"
       : "var(--amber)";
-  const validationTitle =
-    validationStatus === "fallback"
-      ? "LLM summary failed validation; showing structured data fallback."
+  const validationCopy =
+    validationStatus === "verified"
+      ? "Checked against today's recorded indicators. Not a prediction or a guarantee."
       : validationStatus === "unverified"
-        ? "Summary may not be accurate given current market data."
-        : "LLM summary passed validation.";
+        ? "This wording was not confirmed against today's recorded indicators. Not a prediction or a guarantee."
+        : validationStatus === "fallback"
+          ? "Showing recorded indicators because the written summary failed its check. Not a prediction or a guarantee."
+          : null;
+  const evidence = summary.evidence && typeof summary.evidence === "object" ? summary.evidence : {};
 
   return (
     <TerminalPanel
@@ -252,7 +338,6 @@ export default function MarketSummary({ summary, loading, error, onRetry }) {
           )}
           {validationLabel && (
             <span
-              title={validationTitle}
               style={{
                 fontSize: "0.65rem",
                 color: validationColor,
@@ -311,18 +396,12 @@ export default function MarketSummary({ summary, loading, error, onRetry }) {
             >
               {summary.headline}
             </div>
+            <p className="claim-note">Not individually sourced. The claims below carry the supporting indicators.</p>
           </div>
 
-          {validationStatus === "unverified" && (
-            <p
-              style={{
-                margin: "0 0 0.5rem 0",
-                color: "var(--amber)",
-                fontSize: "0.72rem",
-                lineHeight: 1.45,
-              }}
-            >
-              Summary may not be accurate given current market data.
+          {validationCopy && (
+            <p className="claim-note" style={{ color: validationColor }}>
+              {validationCopy}
             </p>
           )}
 
@@ -330,16 +409,16 @@ export default function MarketSummary({ summary, loading, error, onRetry }) {
             title="Regime"
             items={summary.regime_summary}
             accent="var(--green)"
-            paragraph
+            evidence={evidence}
           />
           <details className="narrative-details">
             <summary>Read the briefing · key changes, risks & caveats</summary>
             <div className="briefing-grid">
-              <BulletSection title="Key Changes" items={summary.key_changes} accent="var(--text-soft)" />
-              <BulletSection title="Risks to Watch" items={summary.risks_to_watch} accent="var(--text-soft)" />
+              <BulletSection title="Key Changes" items={summary.key_changes} accent="var(--text-soft)" evidence={evidence} />
+              <BulletSection title="Risks to Watch" items={summary.risks_to_watch} accent="var(--text-soft)" evidence={evidence} />
             </div>
-            <MoodStrip mood={summary.mood_5d} />
-            <BulletSection title="Caveats" items={summary.limitations} accent="var(--text-mute)" />
+            <MoodStrip mood={summary.mood_5d} evidence={evidence} />
+            <BulletSection title="Caveats" items={summary.limitations} accent="var(--text-mute)" sourced={false} />
           </details>
         </>
       ) : (
