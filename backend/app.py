@@ -1,8 +1,10 @@
 import logging
+import os
+from contextlib import asynccontextmanager
+from threading import Event, Thread
 
 from scenario_modeling.src.scenario_runtime import BundleValidationError
 from fastapi import FastAPI, HTTPException
-from threading import Lock
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from db import SessionLocal
@@ -20,13 +22,33 @@ from market_state_service import build_market_state
 from llm_summary import generate_summary_with_guardrail
 from summary_validator import attach_cited_evidence
 from datetime import date
+import refresh_service
 from schemas.scenario import ScenarioRunRequest, ScenarioRunResponse
 from scenario_service import run_scenario as run_scenario_engine
+
+
+@asynccontextmanager
+async def _lifespan(_app):
+    stop = Event()
+    if os.getenv("REFRESH_SCHEDULER", "1") != "0":
+        Thread(
+            target=refresh_service.scheduler_loop,
+            args=(stop, _perform_refresh),
+            name="refresh-scheduler",
+            daemon=True,
+        ).start()
+    try:
+        yield
+    finally:
+        stop.set()
+        refresh_service.stop_process_refresh()
+
 
 app = FastAPI(
     title="InsightPulse Market API",
     description="Backend service for market, macro, and sentiment data.",
     version="1.0.0",
+    lifespan=_lifespan,
 )
 
 
@@ -185,35 +207,23 @@ def _get_or_compute_today_market_state(db: Session, run_ingestion: bool) -> dict
 
 @app.get("/api/compute/daily")
 def compute_daily(skip_ingestion: bool = False):
+    """Queue the same refresh job the scheduler uses and return the saved snapshot."""
+
+    perform = _perform_local_refresh if skip_ingestion else _perform_refresh
+    refresh_service.start_refresh("manual", perform)
+    db: Session = SessionLocal()
     try:
-        ingestion_report = []
-        if not skip_ingestion:
-            ingestion_report = _run_daily_ingestion()
+        payload = _public_summary(db)
+    finally:
+        db.close()
+    payload.setdefault("refresh", {})["in_progress"] = True
+    return payload
 
-        db: Session = SessionLocal()
-        try:
-            market_state = build_market_state(db)
-            _save_market_state(db, market_state)
-        finally:
-            db.close()
-
-        return {
-            "ingestion": ingestion_report,
-            "market_state": market_state,
-        }
-
-    except Exception as e:
-        print("ERROR in compute/daily:", e)
-        return {"error": str(e)}
-
-_summary_lock = Lock()
-
-
-def _stored_market_state(db: Session) -> dict:
-    """Read today's market state without failing the summary when it is absent."""
+def _stored_market_state(db: Session, day=None) -> dict:
+    """Read a saved market state without failing the summary when it is absent."""
 
     try:
-        row = db.query(MarketState).filter(MarketState.date == date.today()).first()
+        row = db.query(MarketState).filter(MarketState.date == (day or date.today())).first()
     except Exception:
         db.rollback()
         return {}
@@ -242,53 +252,98 @@ def _summary_with_evidence(summary, db: Session, market_state: dict | None = Non
     return attach_cited_evidence(summary, state, _stored_metric_dependencies(db))
 
 
+def _observation_dates(market_state: dict) -> list[str]:
+    return sorted({
+        str(row["timestamp"])[:10]
+        for row in market_state.get("evidence", {}).values()
+        if isinstance(row, dict) and row.get("timestamp")
+    })
+
+
+def _write_snapshot(db: Session, market_state: dict, summary: dict) -> None:
+    """Replace today's snapshot only after a complete refresh succeeds."""
+
+    day = date.fromisoformat(market_state["as_of"])
+    existing_state = db.query(MarketState).filter(MarketState.date == day).first()
+    if existing_state:
+        existing_state.data = market_state
+    else:
+        db.add(MarketState(date=day, data=market_state))
+    existing_summary = db.query(MarketSummary).filter(MarketSummary.date == day).first()
+    if existing_summary:
+        existing_summary.summary = summary
+    else:
+        db.add(MarketSummary(date=day, summary=summary))
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise
+
+
+def _perform_local_refresh() -> tuple[str | None, str | None]:
+    """Rebuild the snapshot from stored data without downloading providers."""
+
+    return _publish_snapshot(ingest=False)
+
+
+def _perform_refresh() -> tuple[str | None, str | None]:
+    """Ingest sources and publish a new snapshot. Failures leave the saved snapshot in place."""
+
+    return _publish_snapshot(ingest=True)
+
+
+def _publish_snapshot(ingest: bool) -> tuple[str | None, str | None]:
+    if ingest:
+        _run_daily_ingestion()
+    db: Session = SessionLocal()
+    try:
+        market_state = build_market_state(db)
+        if not market_state.get("evidence"):
+            raise RuntimeError("No market evidence is available; ingest market data first.")
+        summary = generate_summary_with_guardrail(market_state)
+        dates = _observation_dates(market_state)
+        if dates:
+            summary["data_as_of"] = {"oldest": dates[0], "latest": dates[-1]}
+        _write_snapshot(db, market_state, summary)
+        return market_state.get("as_of"), dates[-1] if dates else None
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()
+
+
+def _public_summary(db: Session) -> dict:
+    """Return the newest saved summary and the refresh status. Never starts a refresh."""
+
+    try:
+        row = db.query(MarketSummary).order_by(MarketSummary.date.desc()).first()
+    except Exception:
+        db.rollback()
+        row = None
+    status = refresh_service.refresh_status(db)
+    if row is None or not isinstance(row.summary, dict):
+        return {"refresh": status}
+    payload = _summary_with_evidence(dict(row.summary), db, _stored_market_state(db, row.date))
+    payload["refresh"] = status
+    return payload
+
+
 @app.get("/api/summary/daily")
 def summary_daily(refresh_data: bool = False):
-    """Generate once per day from stored evidence; reject overlapping work promptly."""
-    if not refresh_data:
-        with SessionLocal() as cached_db:
-            cached = cached_db.query(MarketSummary).filter(MarketSummary.date == date.today()).first()
-            if cached and isinstance(cached.summary, dict):
-                return _summary_with_evidence(dict(cached.summary), cached_db)
-    if not _summary_lock.acquire(blocking=False):
-        raise HTTPException(503, "A market summary is already being generated. Retry shortly.", headers={"Retry-After": "5"})
+    """Serve the last saved snapshot. A requested refresh runs in the background."""
+
+    if refresh_data:
+        refresh_service.start_refresh("manual", _perform_refresh)
+    db: Session = SessionLocal()
     try:
-        db: Session = SessionLocal()
-        try:
-            today = date.today()
-
-            existing_summary = db.query(MarketSummary).filter(MarketSummary.date == today).first()
-            if existing_summary and not refresh_data and isinstance(existing_summary.summary, dict):
-                return _summary_with_evidence(dict(existing_summary.summary), db)
-
-            market_state = _get_or_compute_today_market_state(db, run_ingestion=refresh_data)
-            summary = generate_summary_with_guardrail(market_state)
-            dates = sorted({str(row["timestamp"])[:10] for row in market_state.get("evidence", {}).values() if row.get("timestamp")})
-            if dates:
-                summary["data_as_of"] = {"oldest": dates[0], "latest": dates[-1]}
-
-            if existing_summary:
-                existing_summary.summary = summary
-            else:
-                db.add(MarketSummary(date=today, summary=summary))
-            try:
-                db.commit()
-            except IntegrityError:
-                db.rollback()
-                existing_summary = db.query(MarketSummary).filter(MarketSummary.date == today).first()
-                if existing_summary and isinstance(existing_summary.summary, dict):
-                    return _summary_with_evidence(dict(existing_summary.summary), db)
-                raise
-
-            return _summary_with_evidence(summary, db, market_state)
-        finally:
-            db.close()
-
-    except Exception as e:
-        print("ERROR in /summary/daily:", type(e).__name__)
-        raise HTTPException(503, "Market summary generation failed. Please retry shortly.") from e
+        payload = _public_summary(db)
     finally:
-        _summary_lock.release()
+        db.close()
+    if refresh_data:
+        payload.setdefault("refresh", {})["in_progress"] = True
+    return payload
 
 @app.get("/debug/market_state")
 def debug_market_state():

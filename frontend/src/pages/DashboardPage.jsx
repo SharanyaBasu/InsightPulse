@@ -19,7 +19,7 @@ import SectorTile from "../components/Overview/SectorTile";
 
 export default function DashboardPage() {
   const { overview, loading, error, refresh, refreshing } = useMarketData();
-  const { summary, loading: summaryLoading, error: summaryError, refresh: refreshSummary } = useDailySummary();
+  const { summary, loading: summaryLoading, pending: summaryPending, error: summaryError, refresh: refreshSummary } = useDailySummary();
   const [selectedAsset, setSelectedAsset] = useState(null);
   const chart = useAssetHistory(selectedAsset?.symbol);
   if (loading) return <TerminalLoader />;
@@ -30,7 +30,7 @@ export default function DashboardPage() {
     <PageHeader eyebrow="Market intelligence" title="The market, in perspective." description="Start with the takeaway. Explore the moves behind it."><Link className="ui-button" to="/scenario">Test a scenario ↗</Link></PageHeader>
     {error && <DataState error title="Refresh failed" message="Showing the previous market snapshot." onRetry={refresh} loading={refreshing} />}
     <div className="overview-lead">
-      <MarketSummary summary={summary} loading={summaryLoading} error={summaryError} onRetry={refreshSummary} />
+      <MarketSummary summary={summary} loading={summaryLoading} pending={summaryPending} error={summaryError} onRetry={refreshSummary} />
       <TerminalPanel title="Market pulse" className="pulse-panel">
         <span className="eyebrow">Sentiment</span><p className="pulse-label">{sentiment.label || "Unavailable"}</p>
         <p className="muted">Score <strong>{sentiment.score?.toFixed(2) ?? "—"}</strong> · Equity trend: {sentiment.equity_trend || "Unavailable"}</p>

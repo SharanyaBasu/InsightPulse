@@ -212,10 +212,45 @@ function ParagraphFallback({ text }) {
   );
 }
 
+function formatRefreshTime(value) {
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value;
+  return parsed.toLocaleString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    timeZoneName: "short",
+  });
+}
+
+function RefreshNotice({ refresh, hasSnapshot = false }) {
+  if (!refresh) return null;
+  const success = refresh.last_success_at
+    ? `Last successful update: ${formatRefreshTime(refresh.last_success_at)}`
+    : "No successful refresh has been recorded yet.";
+  const observations = refresh.observations_latest
+    ? ` Market observations through ${refresh.observations_latest}.`
+    : "";
+  return (
+    <div className="claim-note">
+      {refresh.in_progress && <p role="status">Refreshing market data…</p>}
+      <p>{success}{observations}</p>
+      {refresh.last_error && (
+        <p role="status">
+          Refresh failed: {refresh.last_error}
+          {hasSnapshot ? " Showing the last saved snapshot." : ""}
+        </p>
+      )}
+    </div>
+  );
+}
+
 function LoadingState() {
   return (
     <div role="status" style={{ color: "var(--text-mute)", fontSize: "0.8rem", lineHeight: 1.6 }}>
-      <span style={{ color: "var(--amber)" }}>{">"}</span> Generating market summary…
+      <span style={{ color: "var(--amber)" }}>{">"}</span> Loading saved snapshot…
     </div>
   );
 }
@@ -256,7 +291,7 @@ const REGIME_LABELS = {
   liquidity_stress: "Liquidity Stress",
 };
 
-export default function MarketSummary({ summary, loading, error, onRetry }) {
+export default function MarketSummary({ summary, loading, pending = false, error, onRetry }) {
   if (loading && !summary) {
     return (
       <TerminalPanel title="Market takeaway" className="takeaway-panel" style={{ marginBottom: "0.5rem" }}>
@@ -283,12 +318,16 @@ export default function MarketSummary({ summary, loading, error, onRetry }) {
       : null;
 
   if (!isStructured && !paragraphText) {
+    const waiting = summary?.refresh?.in_progress;
     return (
       <TerminalPanel title="Market takeaway" className="takeaway-panel" style={{ marginBottom: "0.5rem" }}>
-        <FallbackState
-          message="No daily summary available yet."
-          onRetry={onRetry}
-        />
+        <RefreshNotice refresh={summary?.refresh} />
+        {!waiting && (
+          <FallbackState
+            message={error || "No daily summary available yet."}
+            onRetry={onRetry}
+          />
+        )}
       </TerminalPanel>
     );
   }
@@ -367,9 +406,10 @@ export default function MarketSummary({ summary, loading, error, onRetry }) {
         </div>
       }
     >
-      {summary && (loading || error) && (
+      <RefreshNotice refresh={summary.refresh} hasSnapshot />
+      {summary && (pending || error) && (
         <p role="status" style={{ color: "var(--amber)", fontSize: "0.75rem" }}>
-          {loading ? "Checking for an updated summary…" : `${error} Showing the previous summary.`}
+          {pending ? "Checking for an updated summary…" : `${error} Showing the previous summary.`}
         </p>
       )}
       {summary?.data_as_of && (

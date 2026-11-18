@@ -161,3 +161,28 @@ class SourceObservation(Base):
     __tablename__ = "source_observations"
     metric = Column(String, primary_key=True)
     observed_on = Column(Date, nullable=False)
+
+
+class RefreshLock(Base):
+    """Single-row lock so only one server process runs a refresh at a time."""
+
+    __tablename__ = "refresh_locks"
+    name = Column(String, primary_key=True)
+    owner = Column(String, nullable=False)
+    acquired_at = Column(String, nullable=False)
+    expires_at = Column(String, nullable=False)
+
+
+class RefreshJob(Base):
+    """One ingestion-and-summary attempt, including failures that kept the prior snapshot."""
+
+    __tablename__ = "refresh_jobs"
+    id = Column(Integer, primary_key=True)
+    status = Column(String, nullable=False)
+    trigger = Column(String, nullable=False)
+    owner = Column(String)
+    started_at = Column(String, nullable=False)
+    finished_at = Column(String)
+    error_message = Column(Text)
+    summary_date = Column(String)
+    observations_latest = Column(String)

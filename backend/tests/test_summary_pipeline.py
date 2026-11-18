@@ -1,17 +1,10 @@
-"""Regression tests for data-loading failure and duplicate summary jobs."""
-from concurrent.futures import ThreadPoolExecutor
-from threading import Event
+"""Regression tests for market data loading and summary fallback behavior."""
 from unittest.mock import MagicMock
 
 import pandas as pd
 import pytest
-from fastapi import HTTPException
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import StaticPool
 
 import app
-from models import MarketSummary
 from providers import yahoo_provider
 
 
@@ -43,54 +36,6 @@ def test_summary_state_uses_stored_data_without_provider_ingestion(monkeypatch):
     assert app._get_or_compute_today_market_state(db, False) == state
     calculate.assert_called_once()
     ingest.assert_not_called()
-
-
-@pytest.fixture
-def summary_db(monkeypatch):
-    engine = create_engine('sqlite://', connect_args={'check_same_thread': False}, poolclass=StaticPool)
-    MarketSummary.__table__.create(engine)
-    monkeypatch.setattr(app, 'SessionLocal', sessionmaker(bind=engine))
-    monkeypatch.setattr(app, '_get_or_compute_today_market_state', lambda *_, **__: {'evidence': {'x': {'timestamp': '2026-10-09T00:00:00'}}})
-    yield
-    engine.dispose()
-
-
-def test_concurrent_summary_is_rejected_and_success_is_cached(summary_db, monkeypatch):
-    entered, finish = Event(), Event()
-    calls = []
-    def generate(_):
-        calls.append(1)
-        entered.set()
-        assert finish.wait(5)
-        return {'headline': 'Test summary'}
-    monkeypatch.setattr(app, 'generate_summary_with_guardrail', generate)
-    with ThreadPoolExecutor(max_workers=1) as pool:
-        first = pool.submit(app.summary_daily)
-        try:
-            assert entered.wait(5)
-            with pytest.raises(HTTPException) as error:
-                app.summary_daily()
-            assert error.value.status_code == 503
-            assert error.value.headers['Retry-After'] == '5'
-        finally:
-            finish.set()
-        assert first.result(timeout=5)['headline'] == 'Test summary'
-    cached = app.summary_daily()
-    assert len(calls) == 1
-    assert cached['data_as_of']['latest'] == '2026-10-09'
-    assert cached['evidence'] == {}
-
-
-def test_generation_failure_releases_lock_and_returns_503(summary_db, monkeypatch):
-    def fail(_):
-        raise RuntimeError('provider unavailable')
-    monkeypatch.setattr(app, 'generate_summary_with_guardrail', fail)
-    with pytest.raises(HTTPException) as error:
-        app.summary_daily()
-    assert error.value.status_code == 503
-    assert not app._summary_lock.locked()
-    monkeypatch.setattr(app, 'generate_summary_with_guardrail', lambda _: {'headline': 'Recovered'})
-    assert app.summary_daily()['headline'] == 'Recovered'
 
 
 def test_overloaded_gemini_uses_configured_fallback(monkeypatch):
@@ -125,8 +70,3 @@ def test_expired_generation_budget_makes_no_provider_call(monkeypatch):
         llm_summary._GENERATION_DEADLINE.reset(token)
 
 
-def test_cached_summary_can_be_read_even_while_generation_lock_is_held(summary_db, monkeypatch):
-    monkeypatch.setattr(app, 'generate_summary_with_guardrail', lambda _: {'headline': 'Cached'})
-    app.summary_daily()
-    with app._summary_lock:
-        assert app.summary_daily()['headline'] == 'Cached'
