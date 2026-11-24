@@ -14,6 +14,7 @@ function lerpColor(a, b, t) {
 }
 
 function getTileColor(change, maxAbs) {
+  if (!Number.isFinite(change) || change === 0 || maxAbs === 0) return "#343b46";
   const t = Math.min(Math.abs(change) / maxAbs, 1);
   if (change >= 0) return lerpColor("#1a3d2b", "#1dd75f", t);
   return lerpColor("#3d1a1a", "#ff4e4e", t);
@@ -26,7 +27,7 @@ function CustomContent({ x, y, width, height, name, change, color }) {
   const fontSize = Math.min(width / 7, height / 4, 18);
   const smallFont = Math.max(fontSize * 0.7, 9);
   const showName = height > 36 && width > 40;
-  const sign = change >= 0 ? "+" : "";
+  const sign = change > 0 ? "+" : "";
 
   return (
     <g>
@@ -84,7 +85,7 @@ function CustomContent({ x, y, width, height, name, change, color }) {
   );
 }
 
-function InfoTooltip() {
+function InfoTooltip({ scenario, horizon }) {
   const [visible, setVisible] = useState(false);
 
   return (
@@ -136,6 +137,11 @@ function InfoTooltip() {
           <p style={{ margin: "0 0 0.5rem", color: "var(--text)", fontWeight: 600, fontSize: "0.82rem" }}>
             How are these percentages calculated?
           </p>
+          {scenario ? (
+            <p style={{ margin: 0 }}>
+              Tiles show the Ridge model’s additional sector impact relative to its fixed historical baseline over {horizon} trading days. Tile area scales with impact magnitude, with a minimum area for zero values; it does not represent S&amp;P 500 sector weights. Grey means no displayed change.
+            </p>
+          ) : (<>
           <p style={{ margin: "0 0 0.5rem" }}>
             Each sector's projected change is computed from real day-over-day market
             signal shocks — NASDAQ, S&P 500, oil, 10Y yield, USD index, and copper.
@@ -149,13 +155,14 @@ function InfoTooltip() {
             Tile size reflects the sector's share of the S&P 500. Color intensity
             reflects the magnitude of the projected move.
           </p>
+          </>)}
         </div>
       )}
     </div>
   );
 }
 
-export default function SectorHeatmap({ sectors }) {
+export default function SectorHeatmap({ sectors, scenario = false, horizon = 21 }) {
   if (!sectors?.length) return null;
 
   const maxAbs = Math.max(...sectors.map((s) => Math.abs(s.change)));
@@ -172,9 +179,9 @@ export default function SectorHeatmap({ sectors }) {
       {/* Header row with title and info icon */}
       <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "1rem" }}>
         <h3 style={{ color: "var(--blue)", margin: 0 }}>
-          Sector Heatmap
+          {scenario ? "Sector impact vs baseline" : "Sector Heatmap"}
         </h3>
-        <InfoTooltip />
+        <InfoTooltip scenario={scenario} horizon={horizon} />
       </div>
 
       {/* Legend */}
@@ -184,7 +191,7 @@ export default function SectorHeatmap({ sectors }) {
           height: "8px",
           width: "140px",
           borderRadius: "4px",
-          background: "linear-gradient(to right, #ff4e4e, #1a3d2b, #1dd75f)",
+          background: "linear-gradient(to right, #ff4e4e, #343b46, #1dd75f)",
         }} />
         <span style={{ fontSize: "0.75rem", color: "var(--text-soft)" }}>Positive</span>
       </div>

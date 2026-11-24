@@ -1,4 +1,9 @@
-from fastapi import FastAPI
+import logging
+
+from scenario_modeling.src.scenario_runtime import BundleValidationError
+from fastapi import FastAPI, HTTPException
+from threading import Lock
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from db import SessionLocal
 from models import MarketData, MacroData, MarketState, MarketSummary
@@ -12,8 +17,10 @@ from data_fetcher import (
 from fastapi.responses import JSONResponse
 from overview_service import build_overview_snapshot
 from market_state_service import build_market_state
-from llm_summary import generate_summary
+from llm_summary import generate_summary_with_guardrail
 from datetime import date
+from schemas.scenario import ScenarioRunRequest, ScenarioRunResponse
+from scenario_service import run_scenario as run_scenario_engine
 
 app = FastAPI(
     title="InsightPulse Market API",
@@ -146,15 +153,31 @@ def _save_market_state(db: Session, market_state: dict) -> None:
 
 
 def _get_or_compute_today_market_state(db: Session, run_ingestion: bool) -> dict:
+    """Load today's market state or rebuild it from stored data or explicit ingestion.
+
+    Args:
+        db: Active database session.
+        run_ingestion: Whether to refresh external sources rather than stored metrics.
+
+    Returns:
+        Today's stored or newly built market state.
+    """
+
     today = date.today()
     existing = db.query(MarketState).filter(MarketState.date == today).first()
-    if existing:
+    if existing and not run_ingestion:
         return existing.data
 
     if run_ingestion:
         _run_daily_ingestion()
+    else:
+        # Summary requests use stored source data; refreshing every provider is a
+        # separate operation and must not block reading the dashboard.
+        get_calculated_metrics()
 
     market_state = build_market_state(db)
+    if not market_state.get("evidence"):
+        raise RuntimeError("No market evidence is available; ingest market data first.")
     _save_market_state(db, market_state)
     return market_state
 
@@ -182,30 +205,56 @@ def compute_daily(skip_ingestion: bool = False):
         print("ERROR in compute/daily:", e)
         return {"error": str(e)}
 
+_summary_lock = Lock()
+
+
 @app.get("/api/summary/daily")
 def summary_daily(refresh_data: bool = False):
+    """Generate once per day from stored evidence; reject overlapping work promptly."""
+    if not refresh_data:
+        with SessionLocal() as cached_db:
+            cached = cached_db.query(MarketSummary).filter(MarketSummary.date == date.today()).first()
+            if cached:
+                return cached.summary
+    if not _summary_lock.acquire(blocking=False):
+        raise HTTPException(503, "A market summary is already being generated. Retry shortly.", headers={"Retry-After": "5"})
     try:
         db: Session = SessionLocal()
         try:
             today = date.today()
 
             existing_summary = db.query(MarketSummary).filter(MarketSummary.date == today).first()
-            if existing_summary:
+            if existing_summary and not refresh_data:
                 return existing_summary.summary
 
             market_state = _get_or_compute_today_market_state(db, run_ingestion=refresh_data)
-            summary = generate_summary(market_state)
+            summary = generate_summary_with_guardrail(market_state)
+            dates = sorted({str(row["timestamp"])[:10] for row in market_state.get("evidence", {}).values() if row.get("timestamp")})
+            if dates:
+                summary["data_as_of"] = {"oldest": dates[0], "latest": dates[-1]}
 
-            db.add(MarketSummary(date=today, summary=summary))
-            db.commit()
+            if existing_summary:
+                existing_summary.summary = summary
+            else:
+                db.add(MarketSummary(date=today, summary=summary))
+            try:
+                db.commit()
+            except IntegrityError:
+                db.rollback()
+                existing_summary = db.query(MarketSummary).filter(MarketSummary.date == today).first()
+                if existing_summary:
+                    return existing_summary.summary
+                raise
 
             return summary
         finally:
             db.close()
 
     except Exception as e:
-        print("ERROR in /summary/daily:", e)
-        return {"error": str(e)}
+        print("ERROR in /summary/daily:", type(e).__name__)
+        raise HTTPException(503, "Market summary generation failed. Please retry shortly.") from e
+    finally:
+        _summary_lock.release()
 
 @app.get("/debug/market_state")
 def debug_market_state():
@@ -238,6 +287,11 @@ def debug_summary():
 
 @app.get("/api/scenario", tags=["Live"])
 def get_scenario():
+    """Live day-over-day market deltas for dashboard widgets.
+
+    Not used by Scenario Playground. Playground simulation uses
+    POST /api/scenario/run instead.
+    """
     db: Session = SessionLocal()
     rows = db.query(MarketData).order_by(MarketData.date.desc()).limit(2).all()
     db.close()
@@ -276,3 +330,26 @@ def get_scenario():
     ]
 
     return JSONResponse(content={"assets": assets, "sectors": sectors})
+
+
+@app.post(
+    "/api/scenario/run",
+    response_model=ScenarioRunResponse,
+    tags=["Scenario Playground"],
+    summary="Run Scenario Playground simulation",
+)
+def run_scenario(payload: ScenarioRunRequest) -> ScenarioRunResponse:
+    """Accept macro shocks and return a Scenario Playground result.
+
+    Request/response schemas are defined in `schemas/scenario.py`.
+    Projection logic lives in `scenario_service.run_scenario` (Ridge v1 by default).
+    """
+    try:
+        result = run_scenario_engine(payload.model_dump())
+    except (BundleValidationError, FileNotFoundError) as exc:
+        logging.getLogger(__name__).exception("Scenario model bundle unavailable")
+        raise HTTPException(
+            status_code=503,
+            detail="Scenario model bundle unavailable. Install or restore the verified release bundle, then retry.",
+        ) from exc
+    return ScenarioRunResponse(**result)

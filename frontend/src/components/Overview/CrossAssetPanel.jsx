@@ -98,7 +98,7 @@ export default function CrossAssetPanel({ assets, onRowClick }) {
               onMouseEnter={(e) => onRowClick && (e.currentTarget.style.background = "var(--panel-hover)")}
               onMouseLeave={(e) => onRowClick && (e.currentTarget.style.background = "transparent")}
             >
-              <span style={{ color: "var(--text-soft)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              <span style={{ color: "var(--text)", fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                 {asset.name}
               </span>
               <span style={{ textAlign: "right", fontWeight: 600, fontVariantNumeric: "tabular-nums" }}>

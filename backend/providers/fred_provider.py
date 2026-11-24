@@ -52,6 +52,11 @@ def fetch_macro_data():
     macro_df["DGS2"] = pd.to_numeric(macro_df["DGS2"], errors="coerce")
     macro_df["DGS10"] = pd.to_numeric(macro_df["DGS10"], errors="coerce")
 
+    source_dates = {
+        name: values.dropna().index.max().date().isoformat()
+        for name, values in data.items() if not values.dropna().empty
+    }
     macro_df = macro_df.sort_index().ffill().dropna()
+    macro_df.attrs["observation_dates"] = source_dates
 
     return macro_df

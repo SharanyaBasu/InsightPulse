@@ -15,7 +15,7 @@ export default function RegionTile({ tile }) {
         {tile.region}
       </div>
       <div style={{ fontSize: "0.95rem", fontWeight: 700, color, marginTop: "0.2rem", fontVariantNumeric: "tabular-nums" }}>
-        {tile.change_1m > 0 ? "+" : ""}{tile.change_1m.toFixed(2)}%
+        {tile.change_1m > 0 ? "+" : ""}{tile.change_1m == null ? "Unavailable" : tile.change_1m.toFixed(2) + "%"}
       </div>
     </div>
   );

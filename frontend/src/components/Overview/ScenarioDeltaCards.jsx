@@ -22,9 +22,9 @@ const styles = {
     flexDirection: "column",
     gap: 4,
   },
-  assetName: { fontSize: 12, color: "var(--text-soft)", fontWeight: 400 },
+  assetName: { fontSize: 12, color: "var(--text-soft)", fontWeight: 400, fontFamily: "'JetBrains Mono', monospace" },
   assetVal: { fontSize: 20, fontWeight: 500, lineHeight: 1.15 },
-  assetUnit: { fontSize: 11, fontWeight: 400 },
+  assetUnit: { fontSize: 11, fontWeight: 400, fontFamily: "'JetBrains Mono', monospace" },
 };
 
 const POS_COLOR = "#1D9E75";
@@ -37,9 +37,9 @@ export default function ScenarioDeltaCards({ assets }) {
       <p style={styles.sectionLabel}>Scenario delta — asset impact</p>
       <div style={styles.grid}>
         {assets.map((a) => {
-          const isPos = a.value >= 0;
+          const isPos = a.value > 0;
           const sign = isPos ? "+" : "";
-          const color = isPos ? POS_COLOR : NEG_COLOR;
+          const color = a.value === 0 ? "var(--text-soft)" : isPos ? POS_COLOR : NEG_COLOR;
           return (
             <div key={a.label} style={styles.card}>
               <span style={styles.assetName}>{a.label}</span>

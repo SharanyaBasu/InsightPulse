@@ -4,6 +4,28 @@ from datetime import datetime, timedelta
 
 import pandas as pd
 import yfinance as yf
+from threading import Lock
+
+_DOWNLOAD_LOCK = Lock()
+
+
+def download_history(symbol, **kwargs):
+    """Serialize Yahoo downloads because their shared result cache is not request-local."""
+    with _DOWNLOAD_LOCK:
+        return yf.download(symbol, threads=False, progress=False, timeout=15, **kwargs)
+
+
+def extract_close(frame, symbol):
+    """Select exactly the requested ticker from flat or multi-ticker Close columns."""
+    close = frame["Close"]
+    if isinstance(close, pd.DataFrame):
+        if symbol not in close.columns:
+            raise ValueError(f"Yahoo response is missing Close for {symbol}")
+        close = close[symbol]
+    if not isinstance(close, pd.Series):
+        raise ValueError(f"Yahoo response has ambiguous Close columns for {symbol}")
+    return pd.to_numeric(close, errors="coerce").dropna()
+
 
 
 def fetch_market_data():
@@ -66,11 +88,11 @@ def fetch_market_data():
 
     for name, symbol in tickers.items():
         try:
-            df = yf.download(symbol, start=start, end=end, interval="1d")
+            df = download_history(symbol, start=start, end=end, interval="1d")
 
             # Ensure we have a valid DataFrame and a Close column.
             if isinstance(df, pd.DataFrame) and "Close" in df.columns and not df["Close"].empty:
-                series = df["Close"].dropna()
+                series = extract_close(df, symbol)
                 if len(series) > 5:
                     data[name] = series
                     print(f"Loaded {name} ({len(series)} points)")
@@ -87,8 +109,9 @@ def fetch_market_data():
 
     # Combine all valid Series safely.
     df = pd.concat(data, axis=1, sort=False)
-    df.columns = list(data.keys())
     df.dropna(inplace=True)
+    if df.empty:
+        raise RuntimeError("No overlapping valid market observations were returned.")
 
     print(f"\nFinal dataframe shape: {df.shape}")
     print(df.tail())

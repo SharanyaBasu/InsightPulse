@@ -1,10 +1,10 @@
 """Database write helpers for ingestion workflows."""
 
-from datetime import datetime, timezone
+from datetime import date as calendar_date, datetime, timezone
 
 import pandas as pd
 
-from models import CryptoQuote, EquityQuote, IngestionRun, MacroData, MarketData
+from models import CryptoQuote, EquityQuote, IngestionRun, MacroData, MarketData, SourceObservation
 
 
 def _to_native_scalar(value):
@@ -82,6 +82,11 @@ def ingest_market_data(db, df) -> int:
 
 
 def ingest_macro_data(db, df) -> int:
+    """Persist macro values and their original source dates in one transaction."""
+    SourceObservation.__table__.create(bind=db.get_bind(), checkfirst=True)
+    db.query(SourceObservation).delete()
+    for metric, observed_on in df.attrs.get("observation_dates", {}).items():
+        db.add(SourceObservation(metric=metric, observed_on=calendar_date.fromisoformat(observed_on)))
     db.query(MacroData).delete()
 
     for date, row in df.iterrows():

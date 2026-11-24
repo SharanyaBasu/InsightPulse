@@ -53,11 +53,17 @@ checksums, feature and target schemas, bundled state configuration,
 explanation and confidence schemas, evaluation metadata, and reference
 signature.
 
-The bundle will be distributed separately from Git source control:
+The bundle is distributed separately from Git source control through the
+[Scenario Playground Ridge v1.0.0 release](https://github.com/SharanyaBasu/InsightPulse/releases/tag/scenario-playground-ridge-v1.0.0).
+Download `scenario-playground-ridge-v1.0.0.zip` and extract the complete
+`v1.0.0` directory into the location above. The archive uses Windows path
+separators; on macOS/Linux, ensure these become directories rather than
+literal backslashes in filenames.
+
+Release ZIP SHA-256:
 
 ```text
-TODO: insert the trusted Ridge v1 artifact download location after it is
-published for the team.
+ecfc0e5d6fbdfe1ee09558044a6e0b3b04afa39522b0fda4795553b4d8f6dc11
 ```
 
 ## Security boundary
@@ -293,8 +299,7 @@ no research test modules are required.
 
 Because model binaries are ignored by Git:
 
-1. Obtain the complete `v1.0.0` directory from the trusted team location that
-   will replace the TODO above.
+1. Obtain the complete `v1.0.0` directory from the GitHub release linked above.
 2. Transfer the directory through a trusted team channel.
 3. Do not rename, omit, or separately edit files inside it.
 4. Keep `model_manifest.json` and `artifact_checksums.json` beside the joblib

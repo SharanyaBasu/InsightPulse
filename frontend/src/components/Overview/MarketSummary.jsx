@@ -1,22 +1,51 @@
 import TerminalPanel from "../Terminal/TerminalPanel";
 
-function BulletSection({ title, items, accent = "var(--cyan)" }) {
+function bulletText(item) {
+  return typeof item === "string" ? item : item?.text ?? "";
+}
+
+const sectionTitleStyle = (accent) => ({
+  fontSize: "0.65rem",
+  fontWeight: 600,
+  color: accent,
+  textTransform: "uppercase",
+  letterSpacing: "0.1em",
+  marginBottom: "0.35rem",
+});
+
+function BulletSection({ title, items, accent = "var(--cyan)", paragraph = false }) {
+  if (paragraph) {
+    if (Array.isArray(items)) {
+      return (
+        <BulletSection title={title} items={items} accent={accent} paragraph={false} />
+      );
+    }
+
+    const text = bulletText(items);
+    if (!text) return null;
+
+    return (
+      <div style={{ marginTop: "0.65rem" }}>
+        <div style={sectionTitleStyle(accent)}>{title}</div>
+        <p
+          style={{
+            color: "var(--text-soft)",
+            fontSize: "0.78rem",
+            lineHeight: 1.55,
+            margin: 0,
+          }}
+        >
+          {text}
+        </p>
+      </div>
+    );
+  }
+
   if (!items?.length) return null;
 
   return (
     <div style={{ marginTop: "0.65rem" }}>
-      <div
-        style={{
-          fontSize: "0.65rem",
-          fontWeight: 600,
-          color: accent,
-          textTransform: "uppercase",
-          letterSpacing: "0.1em",
-          marginBottom: "0.35rem",
-        }}
-      >
-        {title}
-      </div>
+        <div style={sectionTitleStyle(accent)}>{title}</div>
       <ul style={{ margin: 0, paddingLeft: "1.1rem", listStyle: "disc" }}>
         {items.map((item, index) => (
           <li
@@ -28,7 +57,7 @@ function BulletSection({ title, items, accent = "var(--cyan)" }) {
               marginBottom: "0.25rem",
             }}
           >
-            {item}
+            {bulletText(item)}
           </li>
         ))}
       </ul>
@@ -74,7 +103,7 @@ function MoodStrip({ mood }) {
       )}
       {mood.drivers?.length > 0 && (
         <span style={{ color: "var(--text-mute)", flex: "1 1 100%" }}>
-          {mood.drivers.join(" · ")}
+          {mood.drivers.map(bulletText).join(" · ")}
         </span>
       )}
     </div>
@@ -102,7 +131,7 @@ function ParagraphFallback({ text }) {
 
 function LoadingState() {
   return (
-    <div style={{ color: "var(--text-mute)", fontSize: "0.8rem", lineHeight: 1.6 }}>
+    <div role="status" style={{ color: "var(--text-mute)", fontSize: "0.8rem", lineHeight: 1.6 }}>
       <span style={{ color: "var(--amber)" }}>{">"}</span> Generating market summary…
     </div>
   );
@@ -145,19 +174,19 @@ const REGIME_LABELS = {
 };
 
 export default function MarketSummary({ summary, loading, error, onRetry }) {
-  if (loading) {
+  if (loading && !summary) {
     return (
-      <TerminalPanel title="Market Narrative" style={{ marginBottom: "0.5rem" }}>
+      <TerminalPanel title="Market takeaway" className="takeaway-panel" style={{ marginBottom: "0.5rem" }}>
         <LoadingState />
       </TerminalPanel>
     );
   }
 
-  if (error) {
+  if (error && !summary) {
     return (
-      <TerminalPanel title="Market Narrative" style={{ marginBottom: "0.5rem" }}>
+      <TerminalPanel title="Market takeaway" className="takeaway-panel" style={{ marginBottom: "0.5rem" }}>
         <FallbackState
-          message="Unable to load today's market summary. Please try again shortly."
+          message={error}
           onRetry={onRetry}
         />
       </TerminalPanel>
@@ -172,7 +201,7 @@ export default function MarketSummary({ summary, loading, error, onRetry }) {
 
   if (!isStructured && !paragraphText) {
     return (
-      <TerminalPanel title="Market Narrative" style={{ marginBottom: "0.5rem" }}>
+      <TerminalPanel title="Market takeaway" className="takeaway-panel" style={{ marginBottom: "0.5rem" }}>
         <FallbackState
           message="No daily summary available yet."
           onRetry={onRetry}
@@ -184,10 +213,29 @@ export default function MarketSummary({ summary, loading, error, onRetry }) {
   const regimeLabel = summary.regime_label
     ? REGIME_LABELS[summary.regime_label] || summary.regime_label
     : null;
+  const validationStatus = summary.validation?.status;
+  const validationLabel =
+    validationStatus === "verified"
+      ? "VERIFIED"
+      : validationStatus === "unverified"
+        ? "MAY BE INACCURATE"
+        : validationStatus === "fallback"
+          ? "DATA FALLBACK"
+          : null;
+  const validationColor =
+    validationStatus === "verified"
+      ? "var(--green)"
+      : "var(--amber)";
+  const validationTitle =
+    validationStatus === "fallback"
+      ? "LLM summary failed validation; showing structured data fallback."
+      : validationStatus === "unverified"
+        ? "Summary may not be accurate given current market data."
+        : "LLM summary passed validation.";
 
   return (
     <TerminalPanel
-      title="Market Narrative"
+      title="Market takeaway" className="takeaway-panel"
       style={{ marginBottom: "0.5rem" }}
       headerRight={
         <div style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
@@ -200,6 +248,18 @@ export default function MarketSummary({ summary, loading, error, onRetry }) {
               }}
             >
               {regimeLabel.toUpperCase()}
+            </span>
+          )}
+          {validationLabel && (
+            <span
+              title={validationTitle}
+              style={{
+                fontSize: "0.65rem",
+                color: validationColor,
+                letterSpacing: "0.06em",
+              }}
+            >
+              {validationLabel}
             </span>
           )}
           {onRetry && (
@@ -222,6 +282,16 @@ export default function MarketSummary({ summary, loading, error, onRetry }) {
         </div>
       }
     >
+      {summary && (loading || error) && (
+        <p role="status" style={{ color: "var(--amber)", fontSize: "0.75rem" }}>
+          {loading ? "Checking for an updated summary…" : `${error} Showing the previous summary.`}
+        </p>
+      )}
+      {summary?.data_as_of && (
+        <p style={{ color: "var(--text-mute)", fontSize: "0.72rem" }}>
+          Underlying observations: {summary.data_as_of.oldest} – {summary.data_as_of.latest}
+        </p>
+      )}
       {isStructured ? (
         <>
           <div
@@ -234,7 +304,7 @@ export default function MarketSummary({ summary, loading, error, onRetry }) {
             <div
               style={{
                 color: "var(--text)",
-                fontSize: "0.9rem",
+                fontSize: "clamp(1.2rem, 2vw, 1.7rem)",
                 fontWeight: 700,
                 lineHeight: 1.45,
               }}
@@ -243,11 +313,34 @@ export default function MarketSummary({ summary, loading, error, onRetry }) {
             </div>
           </div>
 
-          <BulletSection title="Regime" items={summary.regime_summary} accent="var(--green)" />
-          <BulletSection title="Key Changes" items={summary.key_changes} accent="var(--cyan)" />
-          <BulletSection title="Risks to Watch" items={summary.risks_to_watch} accent="var(--red)" />
-          <MoodStrip mood={summary.mood_5d} />
-          <BulletSection title="Caveats" items={summary.limitations} accent="var(--text-mute)" />
+          {validationStatus === "unverified" && (
+            <p
+              style={{
+                margin: "0 0 0.5rem 0",
+                color: "var(--amber)",
+                fontSize: "0.72rem",
+                lineHeight: 1.45,
+              }}
+            >
+              Summary may not be accurate given current market data.
+            </p>
+          )}
+
+          <BulletSection
+            title="Regime"
+            items={summary.regime_summary}
+            accent="var(--green)"
+            paragraph
+          />
+          <details className="narrative-details">
+            <summary>Read the briefing · key changes, risks & caveats</summary>
+            <div className="briefing-grid">
+              <BulletSection title="Key Changes" items={summary.key_changes} accent="var(--text-soft)" />
+              <BulletSection title="Risks to Watch" items={summary.risks_to_watch} accent="var(--text-soft)" />
+            </div>
+            <MoodStrip mood={summary.mood_5d} />
+            <BulletSection title="Caveats" items={summary.limitations} accent="var(--text-mute)" />
+          </details>
         </>
       ) : (
         <ParagraphFallback text={paragraphText} />
