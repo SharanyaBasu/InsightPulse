@@ -1,0 +1,507 @@
+{
+  "artifact_version": "confidence_validation_v1",
+  "applies_to": "baseline forecast only (not the incremental scenario effect)",
+  "causal_effect_claimed": false,
+  "interval_data": "Ridge out-of-sample walk-forward predictions, 2021-01 to 2023-11 (model trained through 2023-11-06)",
+  "backtest_window_check": "NOT RUN: part of the 2025-26 backtest window overlaps the locked final-test set; pending agreement with the Ridge team",
+  "config": {
+    "horizon_days": 21,
+    "nominal_coverage": 0.8,
+    "calibration_fraction": 0.5,
+    "embargo_calendar_days": 30,
+    "min_test_dates": 60,
+    "coverage_tolerance": 0.1,
+    "bootstrap_iters": 1000,
+    "block_length": null,
+    "seed": 42
+  },
+  "label_findings": {
+    "scenario_confidence_ui": "Always 'Low'; never returns High. Describes input familiarity, not accuracy.",
+    "research_confidence_per_target": "Constant over time for every target, so it cannot be tested against error within a target. Across targets, volatility-scaled MAE does not rank by label."
+  },
+  "targets": {
+    "sp500": {
+      "interval_metrics": {
+        "n_calibration": 61,
+        "n_test": 58,
+        "calibration_range": [
+          "2021-01-11",
+          "2022-06-06"
+        ],
+        "test_range": [
+          "2022-07-11",
+          "2023-11-06"
+        ],
+        "block_length_dates": 4,
+        "model_width": 12.02179219832,
+        "baseline_width": 9.759872905400002,
+        "model_coverage": 0.7931034482758621,
+        "model_coverage_ci": [
+          0.6896551724137931,
+          0.9137931034482759
+        ],
+        "baseline_coverage": 0.6724137931034483,
+        "test_mae_model": 4.205257070113517,
+        "test_mae_constant_forecast": 4.206107546563069,
+        "model_beats_constant": true,
+        "coverage_by_vix_regime": null
+      },
+      "display": {
+        "policy": "qualitative_only",
+        "reasons": [
+          "only 58 test dates (need 60)",
+          "interval is not narrower than the unconditional baseline",
+          "coverage not checked within VIX regimes (no VIX history for this period)"
+        ]
+      }
+    },
+    "nasdaq": {
+      "interval_metrics": {
+        "n_calibration": 61,
+        "n_test": 58,
+        "calibration_range": [
+          "2021-01-11",
+          "2022-06-06"
+        ],
+        "test_range": [
+          "2022-07-11",
+          "2023-11-06"
+        ],
+        "block_length_dates": 4,
+        "model_width": 25.619550746018,
+        "baseline_width": 14.84281960052,
+        "model_coverage": 0.9482758620689655,
+        "model_coverage_ci": [
+          0.8793103448275862,
+          1
+        ],
+        "baseline_coverage": 0.7413793103448276,
+        "test_mae_model": 5.3934883913205,
+        "test_mae_constant_forecast": 5.449089549617604,
+        "model_beats_constant": true,
+        "coverage_by_vix_regime": null
+      },
+      "display": {
+        "policy": "qualitative_only",
+        "reasons": [
+          "only 58 test dates (need 60)",
+          "coverage 0.95 is outside the tolerance",
+          "interval is not narrower than the unconditional baseline",
+          "coverage not checked within VIX regimes (no VIX history for this period)"
+        ]
+      }
+    },
+    "ten_year_yield_bps": {
+      "interval_metrics": {
+        "n_calibration": 61,
+        "n_test": 58,
+        "calibration_range": [
+          "2021-01-11",
+          "2022-06-06"
+        ],
+        "test_range": [
+          "2022-07-11",
+          "2023-11-06"
+        ],
+        "block_length_dates": 4,
+        "model_width": 73.997584391306,
+        "baseline_width": 58.000000000000014,
+        "model_coverage": 0.5517241379310345,
+        "model_coverage_ci": [
+          0.39655172413793105,
+          0.6896551724137931
+        ],
+        "baseline_coverage": 0.5172413793103449,
+        "test_mae_model": 33.07785443420767,
+        "test_mae_constant_forecast": 29.603448275862068,
+        "model_beats_constant": false,
+        "coverage_by_vix_regime": null
+      },
+      "display": {
+        "policy": "qualitative_only",
+        "reasons": [
+          "only 58 test dates (need 60)",
+          "coverage 0.55 is outside the tolerance",
+          "interval is not narrower than the unconditional baseline",
+          "point forecast is not more accurate than a constant forecast",
+          "coverage not checked within VIX regimes (no VIX history for this period)"
+        ]
+      }
+    },
+    "dxy": {
+      "interval_metrics": {
+        "n_calibration": 61,
+        "n_test": 58,
+        "calibration_range": [
+          "2021-01-11",
+          "2022-06-06"
+        ],
+        "test_range": [
+          "2022-07-11",
+          "2023-11-06"
+        ],
+        "block_length_dates": 4,
+        "model_width": 4.306380257868001,
+        "baseline_width": 3.8024872827500005,
+        "model_coverage": 0.5172413793103449,
+        "model_coverage_ci": [
+          0.41379310344827586,
+          0.6551724137931034
+        ],
+        "baseline_coverage": 0.4827586206896552,
+        "test_mae_model": 2.2046329344024156,
+        "test_mae_constant_forecast": 2.2553913867206257,
+        "model_beats_constant": true,
+        "coverage_by_vix_regime": null
+      },
+      "display": {
+        "policy": "qualitative_only",
+        "reasons": [
+          "only 58 test dates (need 60)",
+          "coverage 0.52 is outside the tolerance",
+          "interval is not narrower than the unconditional baseline",
+          "coverage not checked within VIX regimes (no VIX history for this period)"
+        ]
+      }
+    },
+    "gold": {
+      "interval_metrics": {
+        "n_calibration": 61,
+        "n_test": 58,
+        "calibration_range": [
+          "2021-01-11",
+          "2022-06-06"
+        ],
+        "test_range": [
+          "2022-07-11",
+          "2023-11-06"
+        ],
+        "block_length_dates": 4,
+        "model_width": 9.148127475194,
+        "baseline_width": 8.15219257095,
+        "model_coverage": 0.7241379310344828,
+        "model_coverage_ci": [
+          0.5689655172413793,
+          0.8448275862068966
+        ],
+        "baseline_coverage": 0.6551724137931034,
+        "test_mae_model": 3.0976536708810967,
+        "test_mae_constant_forecast": 3.5665521814529897,
+        "model_beats_constant": true,
+        "coverage_by_vix_regime": null
+      },
+      "display": {
+        "policy": "qualitative_only",
+        "reasons": [
+          "only 58 test dates (need 60)",
+          "interval is not narrower than the unconditional baseline",
+          "coverage not checked within VIX regimes (no VIX history for this period)"
+        ]
+      }
+    },
+    "oil": {
+      "interval_metrics": {
+        "n_calibration": 61,
+        "n_test": 58,
+        "calibration_range": [
+          "2021-01-11",
+          "2022-06-06"
+        ],
+        "test_range": [
+          "2022-07-11",
+          "2023-11-06"
+        ],
+        "block_length_dates": 4,
+        "model_width": 35.862139815848,
+        "baseline_width": 29.462309165100002,
+        "model_coverage": 0.9655172413793104,
+        "model_coverage_ci": [
+          0.9137931034482759,
+          1
+        ],
+        "baseline_coverage": 0.8448275862068966,
+        "test_mae_model": 7.35520884040278,
+        "test_mae_constant_forecast": 10.045902713661055,
+        "model_beats_constant": true,
+        "coverage_by_vix_regime": null
+      },
+      "display": {
+        "policy": "qualitative_only",
+        "reasons": [
+          "only 58 test dates (need 60)",
+          "coverage 0.97 is outside the tolerance",
+          "interval is not narrower than the unconditional baseline",
+          "coverage not checked within VIX regimes (no VIX history for this period)"
+        ]
+      }
+    },
+    "technology": {
+      "interval_metrics": {
+        "n_calibration": 61,
+        "n_test": 58,
+        "calibration_range": [
+          "2021-01-11",
+          "2022-06-06"
+        ],
+        "test_range": [
+          "2022-07-11",
+          "2023-11-06"
+        ],
+        "block_length_dates": 4,
+        "model_width": 28.671838886640003,
+        "baseline_width": 15.33943703605,
+        "model_coverage": 0.9655172413793104,
+        "model_coverage_ci": [
+          0.896551724137931,
+          1
+        ],
+        "baseline_coverage": 0.6724137931034483,
+        "test_mae_model": 5.976491625308396,
+        "test_mae_constant_forecast": 5.997029443912017,
+        "model_beats_constant": true,
+        "coverage_by_vix_regime": null
+      },
+      "display": {
+        "policy": "qualitative_only",
+        "reasons": [
+          "only 58 test dates (need 60)",
+          "coverage 0.97 is outside the tolerance",
+          "interval is not narrower than the unconditional baseline",
+          "coverage not checked within VIX regimes (no VIX history for this period)"
+        ]
+      }
+    },
+    "energy": {
+      "interval_metrics": {
+        "n_calibration": 61,
+        "n_test": 58,
+        "calibration_range": [
+          "2021-01-11",
+          "2022-06-06"
+        ],
+        "test_range": [
+          "2022-07-11",
+          "2023-11-06"
+        ],
+        "block_length_dates": 4,
+        "model_width": 29.09428059284,
+        "baseline_width": 23.558149765150002,
+        "model_coverage": 0.9482758620689655,
+        "model_coverage_ci": [
+          0.8620689655172413,
+          1
+        ],
+        "baseline_coverage": 0.8620689655172413,
+        "test_mae_model": 6.186523227717374,
+        "test_mae_constant_forecast": 5.726410793412736,
+        "model_beats_constant": false,
+        "coverage_by_vix_regime": null
+      },
+      "display": {
+        "policy": "qualitative_only",
+        "reasons": [
+          "only 58 test dates (need 60)",
+          "coverage 0.95 is outside the tolerance",
+          "interval is not narrower than the unconditional baseline",
+          "point forecast is not more accurate than a constant forecast",
+          "coverage not checked within VIX regimes (no VIX history for this period)"
+        ]
+      }
+    },
+    "financials": {
+      "interval_metrics": {
+        "n_calibration": 61,
+        "n_test": 58,
+        "calibration_range": [
+          "2021-01-11",
+          "2022-06-06"
+        ],
+        "test_range": [
+          "2022-07-11",
+          "2023-11-06"
+        ],
+        "block_length_dates": 4,
+        "model_width": 14.5911730486,
+        "baseline_width": 11.914865235790003,
+        "model_coverage": 0.8275862068965517,
+        "model_coverage_ci": [
+          0.7413793103448276,
+          0.9482758620689655
+        ],
+        "baseline_coverage": 0.7931034482758621,
+        "test_mae_model": 4.718664602223914,
+        "test_mae_constant_forecast": 4.710551030921224,
+        "model_beats_constant": false,
+        "coverage_by_vix_regime": null
+      },
+      "display": {
+        "policy": "qualitative_only",
+        "reasons": [
+          "only 58 test dates (need 60)",
+          "interval is not narrower than the unconditional baseline",
+          "point forecast is not more accurate than a constant forecast",
+          "coverage not checked within VIX regimes (no VIX history for this period)"
+        ]
+      }
+    },
+    "utilities": {
+      "interval_metrics": {
+        "n_calibration": 61,
+        "n_test": 58,
+        "calibration_range": [
+          "2021-01-11",
+          "2022-06-06"
+        ],
+        "test_range": [
+          "2022-07-11",
+          "2023-11-06"
+        ],
+        "block_length_dates": 4,
+        "model_width": 11.48604958995,
+        "baseline_width": 11.85656054466,
+        "model_coverage": 0.7068965517241379,
+        "model_coverage_ci": [
+          0.5344827586206896,
+          0.8275862068965517
+        ],
+        "baseline_coverage": 0.5862068965517241,
+        "test_mae_model": 5.038041636715312,
+        "test_mae_constant_forecast": 5.6310490798600865,
+        "model_beats_constant": true,
+        "coverage_by_vix_regime": null
+      },
+      "display": {
+        "policy": "qualitative_only",
+        "reasons": [
+          "only 58 test dates (need 60)",
+          "coverage not checked within VIX regimes (no VIX history for this period)"
+        ]
+      }
+    },
+    "healthcare": {
+      "interval_metrics": {
+        "n_calibration": 61,
+        "n_test": 58,
+        "calibration_range": [
+          "2021-01-11",
+          "2022-06-06"
+        ],
+        "test_range": [
+          "2022-07-11",
+          "2023-11-06"
+        ],
+        "block_length_dates": 4,
+        "model_width": 9.4681019087,
+        "baseline_width": 9.28365153619,
+        "model_coverage": 0.7758620689655172,
+        "model_coverage_ci": [
+          0.6379310344827587,
+          0.8620689655172413
+        ],
+        "baseline_coverage": 0.7758620689655172,
+        "test_mae_model": 3.3736487713541052,
+        "test_mae_constant_forecast": 3.23004601908045,
+        "model_beats_constant": false,
+        "coverage_by_vix_regime": null
+      },
+      "display": {
+        "policy": "qualitative_only",
+        "reasons": [
+          "only 58 test dates (need 60)",
+          "interval is not narrower than the unconditional baseline",
+          "point forecast is not more accurate than a constant forecast",
+          "coverage not checked within VIX regimes (no VIX history for this period)"
+        ]
+      }
+    },
+    "consumer_discretionary": {
+      "interval_metrics": {
+        "n_calibration": 61,
+        "n_test": 58,
+        "calibration_range": [
+          "2021-01-11",
+          "2022-06-06"
+        ],
+        "test_range": [
+          "2022-07-11",
+          "2023-11-06"
+        ],
+        "block_length_dates": 4,
+        "model_width": 17.55337325008,
+        "baseline_width": 16.125003412639998,
+        "model_coverage": 0.7758620689655172,
+        "model_coverage_ci": [
+          0.6724137931034483,
+          0.9310344827586207
+        ],
+        "baseline_coverage": 0.6896551724137931,
+        "test_mae_model": 6.003712745939776,
+        "test_mae_constant_forecast": 6.07362119469112,
+        "model_beats_constant": true,
+        "coverage_by_vix_regime": null
+      },
+      "display": {
+        "policy": "qualitative_only",
+        "reasons": [
+          "only 58 test dates (need 60)",
+          "interval is not narrower than the unconditional baseline",
+          "coverage not checked within VIX regimes (no VIX history for this period)"
+        ]
+      }
+    }
+  },
+  "probability_audit": {
+    "what_is_shown": "mood_5d.probability, displayed as 'confidence N%'",
+    "how_computed": "share of 5 indicators (S&P, Nasdaq, VIX, gold, TLT 5-day returns) agreeing with the label",
+    "n_dates": 236,
+    "date_range": [
+      "2025-07-07",
+      "2026-06-11"
+    ],
+    "windows_overlap": true,
+    "base_rate_sp500_up_next_5d": 0.6313559322033898,
+    "brier_displayed": 0.36779661016949156,
+    "brier_base_rate": 0.23274561907497845,
+    "brier_coin_flip": 0.25,
+    "label_direction_hit_rate": 0.461864406779661,
+    "reliability": [
+      {
+        "label": "bearish",
+        "shown_probability": 0.6,
+        "n": 36,
+        "observed_up_frequency": 0.7222222222222222
+      },
+      {
+        "label": "bearish",
+        "shown_probability": 0.8,
+        "n": 32,
+        "observed_up_frequency": 0.6875
+      },
+      {
+        "label": "bearish",
+        "shown_probability": 1.0,
+        "n": 30,
+        "observed_up_frequency": 0.7
+      },
+      {
+        "label": "bullish",
+        "shown_probability": 0.6,
+        "n": 45,
+        "observed_up_frequency": 0.4888888888888889
+      },
+      {
+        "label": "bullish",
+        "shown_probability": 0.8,
+        "n": 49,
+        "observed_up_frequency": 0.5714285714285714
+      },
+      {
+        "label": "bullish",
+        "shown_probability": 1.0,
+        "n": 44,
+        "observed_up_frequency": 0.6818181818181818
+      }
+    ],
+    "verdict": "Not a calibrated probability. Do not display as a percentage."
+  }
+}

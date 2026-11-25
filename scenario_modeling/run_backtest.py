@@ -13,11 +13,13 @@ Usage (from repo root):
 """
 
 import argparse
+import bisect
 import csv
 import math
 import sqlite3
 import statistics
 import sys
+from datetime import date, timedelta
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -26,6 +28,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "backend"))
 from src.scenario_runtime import load_scenario_model_bundle
 
 HORIZON = 21  # trading days
+# Assumed publication lags in calendar days (macro values are not known on their stamp date)
+DEFAULT_LAGS = {"cpi": 45, "unemployment": 35, "gdp": 100}
 
 # Maps each model target to (db_column, return_type)
 TARGET_COLUMN_MAP = {
@@ -60,21 +64,64 @@ def load_market_rows(db_path):
     conn.row_factory = sqlite3.Row
     cur = conn.cursor()
     cur.execute("SELECT * FROM market_data ORDER BY date")
-    rows = [dict(row) for row in cur.fetchall()]
+    rows = [dict(r) for r in cur.fetchall()]
+    # FIX 1: macro query now runs BEFORE the connection is closed. Previously the
+    # connection was closed first, the query raised, and the bare except hid it,
+    # so macro was always empty and every macro feature fell back to 0.
+    cur.execute("SELECT * FROM macro_data ORDER BY date")
+    macro_rows = [dict(r) for r in cur.fetchall()]
     conn.close()
+    if not macro_rows:
+        raise RuntimeError("macro_data is empty or missing; refusing to backtest with zeroed macro features.")
+    print(f"Loaded {len(rows)} market_data rows and {len(macro_rows)} macro_data rows from {db_path}")
+    return rows, macro_rows
 
-    # Also try to load macro data
-    macro = {}
-    try:
-        cur2 = conn.cursor()
-        cur2.execute("SELECT * FROM macro_data ORDER BY date")
-        for r in cur2.fetchall():
-            macro[r["date"]] = dict(r)
-    except Exception:
-        pass
 
-    print(f"Loaded {len(rows)} market_data rows from {db_path}")
-    return rows, macro
+class MacroSeries:
+    """As-of lookups on macro_data with a publication lag so a date only sees
+    values that would have been public. The lag is an ASSUMPTION; DB dates may
+    be observation dates, not release dates."""
+
+    def __init__(self, macro_rows, lags):
+        self.rows = [(date.fromisoformat(str(r["date"])[:10]), r) for r in macro_rows]
+        self.dates = [d for d, _ in self.rows]
+        self.lags = lags
+
+    def _asof(self, as_of, field):
+        i = bisect.bisect_right(self.dates, as_of) - 1
+        while i >= 0:
+            v = safe_float(self.rows[i][1].get(field))
+            if v is not None:
+                return i, v
+            i -= 1
+        return None, None
+
+    def level(self, field, market_date):
+        d = market_date - timedelta(days=self.lags.get(field, 0))
+        return self._asof(d, field)[1]
+
+    def yoy_pct(self, field, market_date):
+        d = market_date - timedelta(days=self.lags.get(field, 0))
+        i, cur = self._asof(d, field)
+        _, prior = self._asof(d - timedelta(days=365), field)
+        if cur is None or not prior:
+            return None
+        return (cur / prior - 1) * 100
+
+    def prev_distinct(self, field, market_date):
+        """(current, previous different value) as of the lagged date. Macro is
+        forward-filled daily, so the prior release is the last different value."""
+        d = market_date - timedelta(days=self.lags.get(field, 0))
+        i, cur = self._asof(d, field)
+        if cur is None:
+            return None, None
+        j = i
+        while j >= 0:
+            v = safe_float(self.rows[j][1].get(field))
+            if v is not None and v != cur:
+                return cur, v
+            j -= 1
+        return cur, None
 
 
 def safe_float(value):
@@ -104,6 +151,7 @@ def pct_return(current, previous):
 
 
 def build_state_vector(rows, macro, idx, state_feature_names):
+    """Returns (state, degraded_feature_names)."""
     """
     Build the 45-feature state vector for the model at rows[idx].
     Feature names come directly from the bundle.
@@ -114,42 +162,36 @@ def build_state_vector(rows, macro, idx, state_feature_names):
     def s(col):
         return series_values(rows, col, idx)
 
-    # --- Macro features ---
-    # These come from macro_data table if available, else we approximate from market data
-    # We use the most recent macro row on or before this market date
-    row_date = row["date"]
-    macro_row = None
-    for d in sorted(macro.keys(), reverse=True):
-        if d <= row_date:
-            macro_row = macro[d]
-            break
+    # --- Macro features (FIX 2: units now match the model's feature names) ---
+    # DB stores cpi as an INDEX LEVEL and gdp as a LEVEL. The model expects
+    # cpi_yoy_pct, cpi_mom_pct (percent) and real_gdp_qoq_annualized_pct.
+    mdate = date.fromisoformat(str(row["date"])[:10])
+    degraded = []
 
-    if macro_row:
-        state["fed_funds_target_midpoint_pct"] = safe_float(macro_row.get("fed_funds_rate")) or 0.0
-        state["effective_fed_funds_rate_pct"]  = safe_float(macro_row.get("fed_funds_rate")) or 0.0
-        state["cpi_mom_pct"]                   = 0.0   # not directly available; default
-        state["cpi_yoy_pct"]                   = safe_float(macro_row.get("cpi")) or 0.0
-        state["unemployment_rate_pct"]          = safe_float(macro_row.get("unemployment")) or 0.0
-        state["real_gdp_qoq_annualized_pct"]   = safe_float(macro_row.get("gdp")) or 0.0
-        state["ten_year_yield_pct"]             = safe_float(macro_row.get("ten_year_yield")) or safe_float(row.get("tnx")) or 0.0
-        state["two_year_yield_pct"]             = safe_float(macro_row.get("two_year_yield")) or safe_float(row.get("irx")) or 0.0
-    else:
-        # Fallback to market data approximations
-        state["fed_funds_target_midpoint_pct"] = safe_float(row.get("irx")) or 0.0
-        state["effective_fed_funds_rate_pct"]  = safe_float(row.get("irx")) or 0.0
-        state["cpi_mom_pct"]                   = 0.0
-        state["cpi_yoy_pct"]                   = 0.0
-        state["unemployment_rate_pct"]         = 0.0
-        state["real_gdp_qoq_annualized_pct"]   = 0.0
-        state["ten_year_yield_pct"]            = safe_float(row.get("tnx")) or 0.0
-        state["two_year_yield_pct"]            = safe_float(row.get("irx")) or 0.0
+    def need(value, name, fallback):
+        if value is None:
+            degraded.append(name)
+            return fallback
+        return value
+
+    ff = need(macro.level("fed_funds_rate", mdate), "fed_funds", safe_float(row.get("irx")) or 0.0)
+    state["fed_funds_target_midpoint_pct"] = ff
+    state["effective_fed_funds_rate_pct"] = ff
+    cpi_cur, cpi_prev = macro.prev_distinct("cpi", mdate)
+    state["cpi_mom_pct"] = need((cpi_cur / cpi_prev - 1) * 100 if cpi_cur and cpi_prev else None, "cpi_mom_pct", 0.0)
+    state["cpi_yoy_pct"] = need(macro.yoy_pct("cpi", mdate), "cpi_yoy_pct", 0.0)
+    state["unemployment_rate_pct"] = need(macro.level("unemployment", mdate), "unemployment", 0.0)
+    g_cur, g_prev = macro.prev_distinct("gdp", mdate)
+    state["real_gdp_qoq_annualized_pct"] = need(((g_cur / g_prev) ** 4 - 1) * 100 if g_cur and g_prev else None, "gdp_qoq", 0.0)
+    state["ten_year_yield_pct"] = need(safe_float(row.get("tnx")) or macro.level("ten_year_yield", mdate), "ten_year_yield", 0.0)
+    state["two_year_yield_pct"] = need(macro.level("two_year_yield", mdate), "two_year_yield", safe_float(row.get("irx")) or 0.0)
 
     # Yield curve slope and real rate
     state["yield_curve_slope_10y_2y_pct_points"] = state["ten_year_yield_pct"] - state["two_year_yield_pct"]
     state["real_rate_proxy_pct_points"]          = state["effective_fed_funds_rate_pct"] - state["cpi_yoy_pct"]
 
     # VIX
-    state["vix_level_points"] = safe_float(row.get("vix")) or 20.0
+    state["vix_level_points"] = need(safe_float(row.get("vix")), "vix", 20.0)
 
     # --- Market derived features ---
     assets = {
@@ -195,7 +237,9 @@ def build_state_vector(rows, macro, idx, state_feature_names):
         # 252d drawdown
         keydd = f"{name}_drawdown_252d_pct"
         if keydd in state_feature_names:
-            window252 = vals[-252:] if len(vals) >= 252 else vals
+            if len(vals) < 252:
+                degraded.append(keydd)
+            window252 = vals[-252:]
             peak = max(window252)
             state[keydd] = ((v - peak) / peak * 100) if peak != 0 else 0.0
 
@@ -203,16 +247,20 @@ def build_state_vector(rows, macro, idx, state_feature_names):
         for ma_w, suffix in [(50, "ma_distance_50d_pct"), (200, "ma_distance_200d_pct")]:
             key_ma = f"{name}_{suffix}"
             if key_ma in state_feature_names:
-                if len(vals) >= ma_w:
-                    ma = statistics.mean(vals[-ma_w:])
-                    state[key_ma] = ((v - ma) / ma * 100) if ma != 0 else 0.0
-                else:
-                    state[key_ma] = 0.0
+                # FIX 3: previously set to 0.0 ("exactly at the MA") when history was
+                # short, which is a false value. Use the available window and flag it.
+                if len(vals) < ma_w:
+                    degraded.append(key_ma)
+                window = vals[-ma_w:]
+                ma = statistics.mean(window)
+                state[key_ma] = ((v - ma) / ma * 100) if ma != 0 else 0.0
 
         # 252d z-score
         keyz = f"{name}_zscore_252d"
         if keyz in state_feature_names:
-            z_vals = vals[-252:] if len(vals) >= 252 else (vals if len(vals) >= 60 else [])
+            if len(vals) < 252:
+                degraded.append(keyz)
+            z_vals = vals[-252:] if len(vals) >= 60 else []
             if z_vals:
                 std = statistics.stdev(z_vals)
                 state[keyz] = ((v - statistics.mean(z_vals)) / std) if std != 0 else 0.0
@@ -222,9 +270,10 @@ def build_state_vector(rows, macro, idx, state_feature_names):
     # Fill any remaining features with 0 as fallback
     for feat in state_feature_names:
         if feat not in state:
+            degraded.append(feat)
             state[feat] = 0.0
 
-    return state
+    return state, degraded
 
 
 def compute_actual_return(rows, idx, target):
@@ -244,12 +293,19 @@ def compute_actual_return(rows, idx, target):
         return (future - current) * 100
 
 
-def run_backtest(bundle_path, db_path, out_path):
+def run_backtest(bundle_path, db_path, out_path, strict=False, include_xlp_proxy=False,
+                 lags=None):
     print(f"\nLoading bundle from: {bundle_path}")
     engine = load_scenario_model_bundle(bundle_path)
     print(f"Bundle loaded. Targets: {list(engine.target_names)}")
 
-    rows, macro = load_market_rows(db_path)
+    rows, macro_rows = load_market_rows(db_path)
+    macro = MacroSeries(macro_rows, lags or DEFAULT_LAGS)
+    # FIX 4: XLU is not in the DB. XLP (Consumer Staples) is a different sector, so
+    # scoring the Utilities target against it is invalid. Excluded unless asked.
+    targets = [t for t in engine.target_names if include_xlp_proxy or t != "utilities"]
+    if "utilities" not in targets:
+        print("NOTE: 'utilities' excluded (no XLU data; XLP is not a valid proxy). Use --include-xlp-proxy to force.")
 
     # Lower minimum history since we only have 250 rows
     # Need at least 50 rows of history and 21 rows forward
@@ -263,7 +319,10 @@ def run_backtest(bundle_path, db_path, out_path):
     for idx in range(min_history, len(rows) - HORIZON):
         row_date = rows[idx]["date"]
 
-        state = build_state_vector(rows, macro, idx, engine.state_feature_names)
+        state, degraded = build_state_vector(rows, macro, idx, engine.state_feature_names)
+        if strict and degraded:
+            skipped += 1
+            continue
 
         try:
             result = engine.predict(
@@ -277,7 +336,7 @@ def run_backtest(bundle_path, db_path, out_path):
             skipped += 1
             continue
 
-        for target in engine.target_names:
+        for target in targets:
             pred = result["targets"][target]["baseline_prediction"]
             actual = compute_actual_return(rows, idx, target)
             if actual is None:
@@ -295,6 +354,9 @@ def run_backtest(bundle_path, db_path, out_path):
                 "squared_error":    round(error ** 2, 6),
                 "direction_correct": int((pred >= 0) == (actual >= 0)),
                 "confidence":       result["targets"][target]["confidence_level"],
+                "research_confidence": result.get("confidence", {}).get("targets", {}).get(target, {}).get("overall_research_confidence", ""),
+                "n_degraded_features": len(degraded),
+                "degraded_features": "|".join(degraded),
             })
 
         if (idx - min_history) % 10 == 0:
@@ -310,7 +372,8 @@ def run_backtest(bundle_path, db_path, out_path):
     # Write CSV
     Path(out_path).parent.mkdir(parents=True, exist_ok=True)
     fieldnames = ["date","target","unit","prediction","actual","error",
-                  "abs_error","squared_error","direction_correct","confidence"]
+                  "abs_error","squared_error","direction_correct","confidence",
+                  "research_confidence","n_degraded_features","degraded_features"]
     with open(out_path, "w", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)
         writer.writeheader()
@@ -320,7 +383,7 @@ def run_backtest(bundle_path, db_path, out_path):
     # Summary table
     print(f"{'Target':<30} {'N':>5} {'MAE':>8} {'RMSE':>8} {'Dir%':>6}")
     print("-" * 60)
-    for target in engine.target_names:
+    for target in targets:
         trows = [r for r in results if r["target"] == target]
         if not trows:
             continue
@@ -337,5 +400,13 @@ if __name__ == "__main__":
     parser.add_argument("--bundle", default="scenario_modeling/artifacts/scenario-playground-ridge-v1.0.0/v1.0.0")
     parser.add_argument("--db",     default="backend/insightpulse.db")
     parser.add_argument("--out",    default="scenario_modeling/backtest_results.csv")
+    parser.add_argument("--strict", action="store_true",
+                        help="skip dates where any feature had to use a short-history fallback")
+    parser.add_argument("--include-xlp-proxy", action="store_true",
+                        help="score Utilities against XLP (invalid; for comparison only)")
+    parser.add_argument("--cpi-lag-days", type=int, default=45)
+    parser.add_argument("--unemployment-lag-days", type=int, default=35)
+    parser.add_argument("--gdp-lag-days", type=int, default=100)
     args = parser.parse_args()
-    run_backtest(args.bundle, args.db, args.out)
+    lags = {"cpi": args.cpi_lag_days, "unemployment": args.unemployment_lag_days, "gdp": args.gdp_lag_days}
+    run_backtest(args.bundle, args.db, args.out, args.strict, args.include_xlp_proxy, lags)
