@@ -1,7 +1,10 @@
 import logging
+import os
+import secrets
 
 from scenario_modeling.src.scenario_runtime import BundleValidationError
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, Header, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from threading import Lock
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -29,8 +32,39 @@ app = FastAPI(
 )
 
 
+def _operator_authorized(token: str | None) -> bool:
+    expected = os.getenv("ADMIN_TOKEN", "")
+    if not expected or not token:
+        return False
+    return secrets.compare_digest(token, expected)
+
+
+def require_operator(x_admin_token: str | None = Header(default=None)) -> None:
+    """Hide provider calls and stored dumps from the public site."""
+
+    if not _operator_authorized(x_admin_token):
+        raise HTTPException(status_code=404, detail="Not found")
+
+
+_frontend_origins = [item.strip() for item in os.getenv("FRONTEND_ORIGIN", "").split(",") if item.strip()]
+if _frontend_origins:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=_frontend_origins,
+        allow_methods=["GET", "POST"],
+        allow_headers=["*"],
+    )
+
+
+@app.get("/api/health")
+def health():
+    """Report that the process is serving requests. Does not call providers."""
+
+    return {"status": "ok"}
+
+
 # --- LIVE MARKET SNAPSHOT ---
-@app.get("/api/market-data", tags=["Live"])
+@app.get("/api/market-data", tags=["Live"], dependencies=[Depends(require_operator)])
 def market_data():
     """Fetches the latest live market snapshot (SP500, NASDAQ, Gold, USD Index)"""
     df = get_market_data()
@@ -106,7 +140,9 @@ def get_macro():
     ]
 
 @app.get("/api/overview")
-def api_overview(force_refresh: bool = False):
+def api_overview(force_refresh: bool = False, x_admin_token: str | None = Header(default=None)):
+    if force_refresh and not _operator_authorized(x_admin_token):
+        raise HTTPException(status_code=404, detail="Not found")
     data = build_overview_snapshot(force_refresh=force_refresh)
     return JSONResponse(content=data)
 
@@ -182,7 +218,7 @@ def _get_or_compute_today_market_state(db: Session, run_ingestion: bool) -> dict
     return market_state
 
 
-@app.get("/api/compute/daily")
+@app.get("/api/compute/daily", dependencies=[Depends(require_operator)])
 def compute_daily(skip_ingestion: bool = False):
     try:
         ingestion_report = []
@@ -209,8 +245,10 @@ _summary_lock = Lock()
 
 
 @app.get("/api/summary/daily")
-def summary_daily(refresh_data: bool = False):
+def summary_daily(refresh_data: bool = False, x_admin_token: str | None = Header(default=None)):
     """Generate once per day from stored evidence; reject overlapping work promptly."""
+    if refresh_data and not _operator_authorized(x_admin_token):
+        raise HTTPException(status_code=404, detail="Not found")
     if not refresh_data:
         with SessionLocal() as cached_db:
             cached = cached_db.query(MarketSummary).filter(MarketSummary.date == date.today()).first()
@@ -256,7 +294,7 @@ def summary_daily(refresh_data: bool = False):
     finally:
         _summary_lock.release()
 
-@app.get("/debug/market_state")
+@app.get("/debug/market_state", dependencies=[Depends(require_operator)])
 def debug_market_state():
     db = SessionLocal()
     rows = db.query(MarketState).all()
@@ -270,7 +308,7 @@ def debug_market_state():
         for r in rows
     ]
 
-@app.get("/debug/summary")
+@app.get("/debug/summary", dependencies=[Depends(require_operator)])
 def debug_summary():
     db = SessionLocal()
     rows = db.query(MarketSummary).all()
